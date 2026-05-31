@@ -18,7 +18,6 @@ defineEmits(['prefer'])
 
     <h2 class="name">{{ subject.name }}</h2>
     <p v-if="subject.description" class="desc">{{ subject.description }}</p>
-    <p v-if="subject.country" class="country">📍 {{ subject.country }}</p>
 
     <a :href="subject.wikipediaUrl" target="_blank" rel="noopener" class="wiki">Read on Wikipedia ↗</a>
     <button class="prefer" @click="$emit('prefer', subject.id)">Prefer {{ subject.name.split(' ')[0] }}</button>

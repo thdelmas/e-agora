@@ -22,7 +22,7 @@ Types are Postgres-native: `BIGINT … GENERATED ALWAYS AS IDENTITY` keys,
   ┌────────────────────┐          ┌──────────────────────────────────────┐
   │ id (PK, opaque)    │          │ id (PK)                              │
   │ contributions      │          │ wikidata_id (UQ)  ← identity anchor  │
-  │ created_at         │          │ canonical_name, country, source      │
+  │ created_at         │          │ canonical_name, source               │
   │ last_seen_at       │          │ available_langs TEXT[]               │
   └─────────┬──────────┘          │ rating, rd, volatility,              │
             │                     │ wins, losses, comparisons,           │
@@ -55,7 +55,6 @@ real Wikidata entity that has at least one Wikipedia page (R2).
 | `id` | BIGINT IDENTITY PK | internal id |
 | `wikidata_id` | TEXT NOT NULL UNIQUE | e.g. `Q567`; **identity anchor & dedup key** |
 | `canonical_name` | TEXT NOT NULL | default (English) label; for logs/admin/fallback |
-| `country` | TEXT | best-effort (Wikidata for leaders); nullable |
 | `source` | TEXT NOT NULL DEFAULT `'seed'` | `'seed'` (UN leaders) or `'user'` (R8) |
 | `available_langs` | TEXT[] NOT NULL DEFAULT `'{}'` | Wikipedia language codes with a page (drives R9 without remote checks) |
 | `rating` | DOUBLE PRECISION NOT NULL DEFAULT 1500 | Glicko-2 rating; ranking key |

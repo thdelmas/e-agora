@@ -42,7 +42,7 @@ A SPARQL query yields the current head of state (`P35`) and head of government
 (`P6`) of every UN member state, as person QIDs:
 
 ```sparql
-SELECT DISTINCT ?country ?countryLabel ?person ?personLabel WHERE {
+SELECT DISTINCT ?person ?personLabel WHERE {
   ?country wdt:P463 wd:Q1065 .            # member of: United Nations
   { ?country p:P35 ?st } UNION { ?country p:P6 ?st }   # head of state / government
   ?st ps:P35|ps:P6 ?person .
@@ -61,7 +61,7 @@ SELECT DISTINCT ?country ?countryLabel ?person ?personLabel WHERE {
 
 **Reproducibility & offline**: the query result is cached to a committed
 snapshot `backend/data/un_leaders.json`
-(`[{ "qid": "Q…", "country": "…", "name": "…" }]`; `name` is a label hint used
+(`[{ "qid": "Q…", "name": "…" }]`; `name` is a label hint used
 for logs and the offline fallback), embedded into the binary and used as the
 default seed input. Re-running the query (a maintenance task) refreshes the
 snapshot when leaders change.
@@ -75,7 +75,6 @@ For each person QID, fetch `Special:EntityData/{QID}.json` and read:
 | `claims.P31` contains `Q5` | (validation) | **must be a human** (R8); else skip & log |
 | `labels.en.value` | `subjects.canonical_name` | default/fallback display name |
 | `sitelinks` (`*wiki` keys) | `subjects.available_langs` | `enwiki`→`en`, `frwiki`→`fr`, … (drives R9) |
-| `claims.P27`/country context | `subjects.country` | best-effort (seed sets it from the SPARQL country) |
 
 Then fetch the **English** summary
 (`https://en.wikipedia.org/api/rest_v1/page/summary/{enwiki title}`) and store
@@ -99,13 +98,13 @@ but **preserving ratings & vote history**).
 
 ```
 load un_leaders.json   (+ optional data/seed_extra.json hand-picked humans)
-for each { qid, country }:
+for each { qid, name }:
     entity = GET EntityData(qid)
     if Q5 not in entity.P31:               log skip "not a human"; continue
     langs = languages(entity.sitelinks)
     if "en" not in langs:                  log skip "no English page"; continue   # R9 fallback needs it
     upsert subjects on wikidata_id:
-        canonical_name = labels.en, country, source='seed', available_langs=langs
+        canonical_name = labels.en, source='seed', available_langs=langs
         # never touch rating/wins/losses/comparisons on refresh
     en = GET summary(en, enwiki-title)
     upsert subject_translations (subject_id, 'en') = {name, description, image_url, wikipedia_url}
@@ -160,7 +159,7 @@ happen server-side at add time (clients can't be trusted, R-ADD1).
 If upstreams are unreachable at seed time (CI, air-gapped dev), seed a
 **minimal valid** pool from `un_leaders.json` alone:
 - `subjects`: `wikidata_id=qid`, `canonical_name` = a name hint from the
-  snapshot, `country`, `available_langs={'en'}` (assumed);
+  snapshot, `available_langs={'en'}` (assumed);
 - `subject_translations(qid,'en')`: `name` = hint,
   `wikipedia_url = https://en.wikipedia.org/wiki/Special:EntityData/{qid}`’s
   linked article *if known*, else a `Special:GoToLinkedPage`-style URL that still

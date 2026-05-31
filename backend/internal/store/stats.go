@@ -21,20 +21,17 @@ import (
 func (s *Store) Stats(ctx context.Context, days int) (model.Stats, error) {
 	var st model.Stats
 
-	// All-time totals in a single round trip. Countries counts only non-empty
-	// country labels among active subjects (about public figures, not visitors).
+	// All-time totals in a single round trip.
 	if err := s.pool.QueryRow(ctx, `
 		SELECT
 			(SELECT count(*) FROM votes),
 			(SELECT count(DISTINCT session_id) FROM votes),
 			(SELECT count(*) FROM sessions),
 			(SELECT count(*) FROM subjects WHERE active),
-			(SELECT count(*) FROM subjects WHERE source = 'user'),
-			(SELECT count(DISTINCT country) FROM subjects
-			   WHERE active AND country IS NOT NULL AND country <> '')`,
+			(SELECT count(*) FROM subjects WHERE source = 'user')`,
 	).Scan(
 		&st.Totals.Votes, &st.Totals.Voters, &st.Totals.Visitors,
-		&st.Totals.Subjects, &st.Totals.UserContributed, &st.Totals.Countries,
+		&st.Totals.Subjects, &st.Totals.UserContributed,
 	); err != nil {
 		return model.Stats{}, fmt.Errorf("stats totals: %w", err)
 	}

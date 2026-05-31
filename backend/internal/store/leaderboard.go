@@ -15,7 +15,7 @@ import (
 // handler localizes each.
 func (s *Store) TopByRating(ctx context.Context, limit, offset int) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, wikidata_id, canonical_name, COALESCE(country, ''), available_langs,
+		SELECT id, wikidata_id, canonical_name, available_langs,
 		       rating, rd, wins, losses, comparisons
 		FROM subjects WHERE active
 		ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
@@ -28,7 +28,7 @@ func (s *Store) TopByRating(ctx context.Context, limit, offset int) ([]model.Sub
 	var out []model.Subject
 	for rows.Next() {
 		var s model.Subject
-		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.Country, &s.AvailableLangs,
+		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.AvailableLangs,
 			&s.Rating, &s.RD, &s.Wins, &s.Losses, &s.Comparisons); err != nil {
 			return nil, fmt.Errorf("scan leaderboard row: %w", err)
 		}

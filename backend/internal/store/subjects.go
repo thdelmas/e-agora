@@ -6,22 +6,21 @@ import (
 )
 
 // UpsertSubject inserts a subject or, on a wikidata_id conflict, refreshes its
-// metadata (name, country, available languages) WITHOUT touching rating, wins,
-// losses, comparisons, active, or source — so re-seeding (EAGORA_SEED=force)
-// never resets ratings or vote history (docs/06-wikipedia-ingestion.md §Step 3).
+// metadata (name, available languages) WITHOUT touching rating, wins, losses,
+// comparisons, active, or source — so re-seeding (EAGORA_SEED=force) never
+// resets ratings or vote history (docs/06-wikipedia-ingestion.md §Step 3).
 // Returns the subject's internal id.
-func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, country, source string, langs []string) (int64, error) {
+func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, country, source, available_langs)
-		VALUES ($1, $2, NULLIF($3, ''), $4, $5)
+		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (wikidata_id) DO UPDATE SET
 			canonical_name  = EXCLUDED.canonical_name,
-			country         = EXCLUDED.country,
 			available_langs = EXCLUDED.available_langs,
 			updated_at      = now()
 		RETURNING id`,
-		qid, canonicalName, country, source, langs,
+		qid, canonicalName, source, langs,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert subject %s: %w", qid, err)

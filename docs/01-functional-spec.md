@@ -63,9 +63,9 @@ The landing and default screen.
 - Project wordmark **e-agora** and a one-line tagline.
 - Prompt: **"Who do you prefer?"** (localized to the display language).
 - Two **PoliticianCards** side by side (stacked on narrow screens):
-  - image (from Wikipedia), name, one-line description, country (if known),
-    and a small "Wikipedia ↗" link to the **display-language** page (opens in a
-    new tab; satisfies R2 visibly).
+  - image (from Wikipedia), name, one-line description, and a small
+    "Wikipedia ↗" link to the **display-language** page (opens in a new tab;
+    satisfies R2 visibly).
 - A **language note** when the English fallback was applied (R9): a subtle
   *"Shown in English — one of these isn't available in <language>."*
 - A subtle **"Skip / show another pair"** action (no vote recorded).
@@ -115,7 +115,7 @@ A subtle banner shows the **remaining access window** (e.g. *"Access expires in
 - Title: **"World rankings"** + subtitle explaining it reflects visitor
   preferences.
 - Ordered list, rank 1..N:
-  - rank number, image, name, country, **rating**, and **wins–losses** (or
+  - rank number, image, name, **rating**, and **wins–losses** (or
     "matchups" count).
   - subtle highlight for subjects the visitor personally voted for (optional,
     nice-to-have; requires per-session vote history — out of scope for v1 unless

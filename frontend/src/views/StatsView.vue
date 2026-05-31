@@ -88,10 +88,6 @@ function fmt(n) {
           <span class="stat-num">{{ fmt(totals.userContributed) }}</span>
           <span class="stat-key">➕ added by visitors</span>
         </div>
-        <div class="stat-card countries">
-          <span class="stat-num">{{ fmt(totals.countries) }}</span>
-          <span class="stat-key">🌍 countries</span>
-        </div>
       </div>
 
       <p v-if="isEmpty" class="empty-note">No activity yet — be the first to step into the arena and vote.</p>
