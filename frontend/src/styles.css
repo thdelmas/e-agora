@@ -23,7 +23,7 @@
   --gold: #d8a23a;
   --gold-deep: #b07c16;
 
-  /* Duel sides */
+  /* Vote sides */
   --teal: #0f9d8e;          /* side A */
   --teal-deep: #0a6f66;
   --amber: #ef7a45;         /* side B */
@@ -248,7 +248,7 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 }
 .wiki:hover { opacity: 1; text-decoration: underline; }
 
-/* The glowing duel medallion */
+/* The glowing vote medallion */
 .vs {
   align-self: center; flex: 0 0 auto; position: relative;
   width: 3.6rem; height: 3.6rem; display: grid; place-items: center;
@@ -384,6 +384,38 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .result-text { display: flex; flex-direction: column; min-width: 0; }
 .result-text strong { font-weight: 700; }
 .result-text .detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+
+/* Add-confirmation card: shown after a successful add so the visitor sees
+   exactly who joined the pool (identity + photo), not just a text nudge. */
+.added-card {
+  display: flex; gap: 0.8rem; align-items: center; text-align: left;
+  background: rgba(31, 110, 76, 0.07); border: 1px solid var(--border);
+  border-radius: 12px; padding: 0.7rem; margin: 0.55rem 0 0.85rem;
+}
+.added-portrait {
+  width: 64px; height: 64px; object-fit: cover; border-radius: 10px; flex: none; background: #efe7d6;
+}
+.added-portrait.placeholder {
+  background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 8px, #e9dfc9 8px, #e9dfc9 16px);
+}
+.added-text { display: flex; flex-direction: column; min-width: 0; gap: 0.1rem; }
+.added-name { font-weight: 800; font-size: 1.05rem; }
+.added-text .detail { color: var(--muted); }
+.hint { font-size: 0.85rem; margin: 0.1rem 0 0.3rem; }
+
+/* Clean pill button for the "Read on Wikipedia" link in the add-confirmation
+   card — a clear, tappable secondary action (the primary is "Done"). */
+.wiki-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; align-self: flex-start;
+  margin-top: 0.4rem; padding: 0.4rem 0.8rem; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff; color: var(--teal-deep);
+  font-size: 0.82rem; font-weight: 700; text-decoration: none;
+  transition: border-color 0.16s, background 0.16s, transform 0.12s, box-shadow 0.16s;
+}
+.wiki-btn:hover {
+  border-color: var(--teal); background: rgba(15, 157, 142, 0.08);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 157, 142, 0.18);
+}
 
 /* Humanity check */
 .oath {

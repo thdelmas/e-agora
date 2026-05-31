@@ -8,7 +8,7 @@ ALTER TABLE subjects
   ADD COLUMN volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06;
 
 -- Existing ratings carry information, so don't reset already-voted subjects to
--- full uncertainty (which would let one fresh vote swing a 70-duel veteran like
+-- full uncertainty (which would let one fresh vote swing a 70-vote veteran like
 -- a newcomer). Give them a tighter starting RD that shrinks with the evidence
 -- they already have. A one-time heuristic; the live model refines RD per vote
 -- from here on. Brand-new subjects (comparisons = 0) keep the 350 default.

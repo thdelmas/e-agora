@@ -47,7 +47,7 @@ function openLeaderboard() {
   <div class="app">
     <header class="topbar">
       <RouterLink to="/" class="wordmark">e-agora</RouterLink>
-      <span class="tagline">where the people decide, one duel at a time</span>
+      <span class="tagline">where the people decide, one vote at a time</span>
 
       <nav class="nav">
         <span v-if="me.contributions > 0" class="contrib" title="Votes you've contributed">

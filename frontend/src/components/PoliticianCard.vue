@@ -1,7 +1,7 @@
 <script setup>
 // One subject in a matchup. Rating is intentionally absent so the visitor isn't
 // biased before choosing (docs/04-api.md §Resource shapes). `side` ('a' | 'b')
-// tints the card for the head-to-head duel — teal vs amber.
+// tints the card for the head-to-head vote — teal vs amber.
 defineProps({
   subject: { type: Object, required: true },
   side: { type: String, default: 'a' },
