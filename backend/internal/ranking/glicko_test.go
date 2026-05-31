@@ -65,8 +65,8 @@ func TestUpdate_EvenMatchupSymmetric(t *testing.T) {
 // settled favorite (low RD) barely moves, while an unproven underdog (high RD)
 // swings hard on the same result, so total rating is not conserved.
 func TestUpdate_NotConservedUncertaintyDrivesMagnitude(t *testing.T) {
-	settled := Rating{R: 1700, RD: 40, Vol: 0.06}    // proven favorite
-	unproven := Rating{R: 1700, RD: 350, Vol: 0.06}  // freshly added, same rating
+	settled := Rating{R: 1700, RD: 40, Vol: 0.06}   // proven favorite
+	unproven := Rating{R: 1700, RD: 350, Vol: 0.06} // freshly added, same rating
 	opponent := Rating{R: 1500, RD: 80, Vol: 0.06}
 
 	// Same result (the 1700 loses to the 1500) from each starting point.

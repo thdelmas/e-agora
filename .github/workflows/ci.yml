@@ -1,0 +1,78 @@
+name: CI
+
+# Gate every push and PR to main / the deploy branch before Render auto-deploys.
+# Mirrors the local Makefile targets (make test / make build / make prod-build).
+on:
+  push:
+    branches: [main, app-and-free-deploy]
+  pull_request:
+    branches: [main, app-and-free-deploy]
+
+# A newer push to the same ref cancels the in-flight run for that ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: gofmt (check, no rewrite)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./...
+
+  frontend:
+    name: Frontend (Vue/Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Prod image (Dockerfile.prod)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the same single image Render deploys, catching prod-build
+      # breakage here instead of at deploy time. Build only (not pushed).
+      - name: Build production image
+        run: docker build -f Dockerfile.prod -t e-agora:ci .
