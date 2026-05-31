@@ -100,8 +100,8 @@ onUnmounted(() => {
   <section class="matchup">
     <p v-if="lockedHint" class="locked-hint">🔓 Vote once to unlock the rankings for 24 hours.</p>
 
-    <h1 class="prompt">Who do you <em>prefer?</em></h1>
-    <p class="subprompt">Two figures enter the agora. You decide who carries the day.</p>
+    <h1 class="prompt">Who would you rather have as a <em>leader?</em></h1>
+    <p class="subprompt">Two figures enter the agora. Pick the one you'd rather see in charge.</p>
 
     <p v-if="loading" class="muted">Summoning two challengers…</p>
 

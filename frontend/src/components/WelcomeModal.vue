@@ -10,7 +10,7 @@ defineEmits(['enter'])
     <div class="modal welcome" role="dialog" aria-modal="true" aria-label="Welcome to e-agora">
       <h2>Welcome to the agora</h2>
       <p class="muted">
-        Two public figures enter, you decide who carries the day. Thousands of these
+        Two public figures enter — you pick who you'd rather have as a leader. Thousands of these
         one-on-one duels pool into a single, ever-shifting ranking — shaped by people,
         not editors.
       </p>
