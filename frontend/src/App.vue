@@ -11,6 +11,10 @@ const router = useRouter()
 const route = useRoute()
 const showAdd = ref(false)
 
+// Until a visitor casts their first vote they have no access: every nav action
+// (Stats, Add someone, Rankings) wears the lock and nudges them back to vote.
+const lockedTo = { path: '/', query: { locked: '1' } }
+
 // The public stats page is open to everyone — it must render without the
 // humanity check or welcome step (those gate the voting arena, not a page of
 // anonymous aggregate numbers). Matches the ungated /api/stats endpoint.
@@ -38,8 +42,13 @@ const addTitle = computed(() => {
   return 'Add a person with a Wikipedia page'
 })
 
+function onAdd() {
+  if (!me.hasAccess) { router.push(lockedTo); return }
+  showAdd.value = true
+}
+
 function openLeaderboard() {
-  router.push(me.hasAccess ? '/leaderboard' : { path: '/', query: { locked: '1' } })
+  router.push(me.hasAccess ? '/leaderboard' : lockedTo)
 }
 </script>
 
@@ -50,14 +59,11 @@ function openLeaderboard() {
       <span class="tagline">where the people decide, one vote at a time</span>
 
       <nav class="nav">
-        <span v-if="me.contributions > 0" class="contrib" title="Votes you've contributed">
-          {{ me.contributions }} {{ me.contributions === 1 ? 'vote' : 'votes' }}
-        </span>
-        <RouterLink to="/stats" class="nav-stats" title="Public statistics — anonymous & open to all">
-          Stats
+        <RouterLink :to="me.hasAccess ? '/stats' : lockedTo" class="nav-stats" :class="{ locked: !me.hasAccess }" :title="me.hasAccess ? 'Public statistics — anonymous & open to all' : 'Vote once to unlock the stats'">
+          {{ me.hasAccess ? 'Stats' : 'Stats 🔒' }}
         </RouterLink>
-        <button class="nav-add" :disabled="!me.canAdd" :title="addTitle" @click="showAdd = true">
-          + Add someone
+        <button class="nav-add" :class="{ locked: !me.hasAccess }" :disabled="me.hasAccess && !me.canAdd" :title="addTitle" @click="onAdd">
+          {{ me.hasAccess ? '+ Add someone' : '+ Add someone 🔒' }}
         </button>
         <button class="nav-board" :class="{ locked: !me.hasAccess }" :title="me.hasAccess ? 'World rankings' : 'Vote once to unlock the rankings'" @click="openLeaderboard">
           {{ me.hasAccess ? 'Rankings' : 'Rankings 🔒' }}
