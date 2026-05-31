@@ -269,6 +269,13 @@ The leaderboard localizes the same way using the request's resolved language
   deterministic tie-break), joined to `subject_translations` for the display
   language.
 - **Total votes** = `COUNT(*) FROM votes`.
+- **Public stats** ([04](04-api.md) §GET /api/stats) are all derived on read —
+  no new tables. All-time totals are counts over `votes`, `sessions`, and
+  `subjects`; the daily time series buckets `votes`/`sessions`/`subjects` by
+  `(created_at AT TIME ZONE 'UTC')::date`, gap-filled with `generate_series`.
+  "Visitors" = new `sessions` per day (`sessions.created_at`); "voters" =
+  `COUNT(DISTINCT session_id)`. Every figure is an aggregate **count** — no
+  per-visitor row, geography, or PII is exposed (the IP is never stored).
 - **Recompute path**: because `votes` is append-only and snapshots the full
   pre-vote state (`*_rating_before`, `*_rd_before`, `*_vol_before`), ratings can
   be rebuilt by replaying votes in `created_at` order if the Glicko-2 parameters

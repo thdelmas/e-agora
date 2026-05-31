@@ -62,6 +62,35 @@ type Session struct {
 	LastSeenAt         time.Time
 }
 
+// Stats is an aggregate, privacy-preserving snapshot of public activity
+// (docs/04-api.md §GET /api/stats). Every field is a count over anonymous,
+// non-identifying data — there are no per-visitor rows, no PII, no geography of
+// visitors (their IP is never stored). It is safe to serve to anyone.
+type Stats struct {
+	Totals StatsTotals
+	Daily  []DailyStat
+}
+
+// StatsTotals are the all-time headline counts.
+type StatsTotals struct {
+	Votes           int // preferences recorded, all-time
+	Voters          int // distinct anonymous sessions that have ever voted
+	Visitors        int // anonymous sessions ever created (≈ unique browsers/devices)
+	Subjects        int // active people in the pool
+	UserContributed int // subjects added by visitors (source='user')
+	Countries       int // distinct countries represented among active subjects
+}
+
+// DailyStat is one UTC-day bucket of the activity time series. Days with no
+// activity are present with zero counts (the series is gap-filled).
+type DailyStat struct {
+	Date     time.Time // UTC midnight of the day this bucket covers
+	Votes    int       // votes cast that day
+	Voters   int       // distinct sessions that voted that day
+	Visitors int       // sessions first seen that day (≈ new visitors)
+	Added    int       // people added to the pool that day
+}
+
 // SubjectPublic is the localized projection returned to clients
 // (docs/04-api.md §Resource shapes). Ratings are omitted from matchups so the
 // visitor isn't biased before choosing.

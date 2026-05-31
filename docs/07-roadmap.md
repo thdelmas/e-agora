@@ -152,6 +152,22 @@ subjects converge fast and the board ranks conservatively until a rating is prov
   `R`/`RD`/`σ` correctly under concurrency; the board sorts by `rating − 2·RD`;
   new subjects are oversampled until their `RD` shrinks.
 
+### M8 — Public stats dashboard ✅ (done)
+Open, anonymous transparency page so anyone (no vote required) can see the agora's
+activity, while honoring the anonymity promise (R3 / no PII).
+- [x] `store.Stats(days)` — all-time totals (votes, distinct voters, visitors,
+      pool size, user-added, countries) + a gap-filled daily series
+      (votes/voters/visitors/added), bucketed by UTC day via `generate_series`.
+      Derived on read; **no new tables** (docs/03-data-model.md §Derived data).
+- [x] `GET /api/stats` — **public/ungated**, mints **no** session; `days` window
+      (default 30, 1–365) ([04](04-api.md) §GET /api/stats).
+- [x] Frontend `/stats` route (ungated) + `StatsView` with headline stat cards,
+      a 7/30/90-day picker, and dependency-free SVG charts (`TimeSeriesChart`:
+      area + bars, responsive, `aria-label` + per-point `<title>`); nav link.
+- **Done when**: `/api/stats` returns aggregate counts with no per-visitor data;
+  "Votes over time" and "Visitors over time" render with other privacy-safe
+  metrics; the page is reachable without an access token.
+
 ## Definition of done (v1)
 
 All requirements demonstrably met:

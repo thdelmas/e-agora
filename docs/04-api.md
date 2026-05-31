@@ -301,6 +301,47 @@ is unused (R8.1). `humanVerified` is `true` while `humanVerifiedUntil > now`
 (R12); when `false`, the client should expect the humanity check on the next
 vote attempt.
 
+### `GET /api/stats`
+
+Public transparency dashboard data. **Ungated** (no token, no session minted):
+the figures are aggregate counts over **anonymous** data and reveal nothing about
+any individual visitor (no IP, geography, account, or per-visitor row is ever
+stored or returned — see §Abuse & integrity).
+
+**Query**: `days` (trailing UTC-day window; default `30`, min `1`, max `365`).
+
+**200**
+```json
+{
+  "generatedAt": "2026-05-31T12:00:00Z",
+  "days": 30,
+  "totals": {
+    "votes": 12840,
+    "voters": 1932,
+    "visitors": 2517,
+    "subjects": 391,
+    "userContributed": 28,
+    "countries": 142
+  },
+  "daily": [
+    { "date": "2026-05-02", "votes": 412, "voters": 73, "visitors": 88, "added": 1 }
+  ]
+}
+```
+- `totals` are **all-time**: `votes` (preferences recorded), `voters` (distinct
+  anonymous sessions that ever voted), `visitors` (anonymous sessions ever
+  created ≈ unique browsers), `subjects` (active people in the pool),
+  `userContributed` (subjects with `source='user'`), `countries` (distinct
+  non-empty `country` labels among active subjects).
+- `daily` is a **gap-filled** series of exactly `days` UTC-day buckets (zeros
+  where there was no activity), each with that day's `votes`, distinct `voters`,
+  new `visitors` (sessions first seen that day), and people `added`.
+
+> "Visitors" is derived from `sessions.created_at` — the first time a browser is
+> seen — so it counts **new** anonymous browsers per day, not raw page views
+> (which e-agora deliberately does not log). Every value is a `COUNT`; there is
+> no per-visitor data to expose.
+
 ### `GET /api/healthz`
 
 Liveness/readiness. **200** `{ "status": "ok", "subjects": 391, "seeded": true }`.
@@ -318,6 +359,7 @@ No session side effects.
 | POST | `/api/subjects` | **valid token + unused add** | yes | add a human (R8), once per token |
 | GET | `/api/subjects/search` | none | no | autocomplete for adding |
 | GET | `/api/me` | none | no (mints session) | contribution + access state |
+| GET | `/api/stats` | none | no (no session) | public, anonymous activity stats |
 | GET | `/api/healthz` | none | no | health |
 
 ## CORS

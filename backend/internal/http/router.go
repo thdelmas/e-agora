@@ -49,6 +49,7 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", h.healthz)
+		r.Get("/stats", h.stats) // public transparency dashboard (ungated, no session)
 
 		// Routes needing an anonymous session.
 		r.Group(func(r chi.Router) {
