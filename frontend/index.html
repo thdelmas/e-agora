@@ -21,8 +21,11 @@
     />
 
     <!-- Canonical + Open Graph + Twitter Card tags are injected per route by the
-         backend just before </head> (see backend/internal/http/spa.go). The Vite
-         dev server serves this file as-is, so they are absent in local dev. -->
+         backend just before the closing head tag (see backend/internal/http/spa.go).
+         Do NOT write the literal closing-head token in this comment: Vite's build
+         injects the bundled script/stylesheet right before the first match it finds
+         and would otherwise place them inside this comment, leaving a blank page. The
+         Vite dev server serves this file as-is, so the SEO tags are absent in dev. -->
   </head>
   <body>
     <div id="app"></div>
