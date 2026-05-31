@@ -12,11 +12,18 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/thdelmas/e-agora/backend/internal/config"
+	"github.com/thdelmas/e-agora/backend/internal/human"
+	"github.com/thdelmas/e-agora/backend/internal/ingest"
+	"github.com/thdelmas/e-agora/backend/internal/ratelimit"
 	"github.com/thdelmas/e-agora/backend/internal/store"
+	"github.com/thdelmas/e-agora/backend/internal/subjects"
 )
 
+// challengeTTL bounds how long a humanity challenge may be solved.
+const challengeTTL = 10 * time.Minute
+
 // NewRouter builds the top-level HTTP handler with cross-cutting middleware and
-// the /api routes. Endpoints not yet implemented in this milestone return 501.
+// the /api routes. Endpoints not yet implemented return 501.
 func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
@@ -25,32 +32,55 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	h := &handlers{cfg: cfg, store: db, logger: logger}
+	client := ingest.NewClient()
+	h := &handlers{
+		cfg:     cfg,
+		store:   db,
+		logger:  logger,
+		limiter: ratelimit.New(cfg.VoteBurst, cfg.VoteRate),
+		ingest:  client,
+		addsvc:  subjects.New(client, db),
+	}
+	if hc, err := human.New(cfg.TokenSecret, challengeTTL); err != nil {
+		logger.Error("humanity check init failed", "err", err)
+	} else {
+		h.human = hc
+	}
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", h.healthz)
 
-		// Wired in later milestones (docs/07-roadmap.md M3–M4):
-		r.Get("/matchup", notImplemented)
-		r.Get("/human/challenge", notImplemented)
-		r.Post("/human/verify", notImplemented)
-		r.Post("/votes", notImplemented)
-		r.Get("/leaderboard", notImplemented)
-		r.Post("/subjects", notImplemented)
-		r.Get("/subjects/search", notImplemented)
-		r.Get("/me", notImplemented)
+		// Routes needing an anonymous session.
+		r.Group(func(r chi.Router) {
+			r.Use(h.sessionMW)
+			r.Get("/matchup", h.matchup)
+			r.Get("/human/challenge", h.humanChallenge)
+			r.Post("/human/verify", h.humanVerify)
+			r.Post("/votes", h.vote)
+			r.Get("/me", h.me)
+			r.Get("/leaderboard", h.leaderboard)
+			r.Post("/subjects", h.addSubject)
+			r.Get("/subjects/search", h.subjectsSearch)
+		})
 	})
+
+	// Production same-origin serving (M6): serve the built SPA for non-/api
+	// paths when EAGORA_STATIC_DIR is set. In dev the Vite server does this.
+	if cfg.StaticDir != "" {
+		logger.Info("serving SPA", "dir", cfg.StaticDir)
+		r.Handle("/*", spaHandler(cfg.StaticDir))
+	}
 
 	return r
 }
 
 // handlers carries shared dependencies for the API handlers.
 type handlers struct {
-	cfg    config.Config
-	store  *store.Store
-	logger *slog.Logger
-}
-
-func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "This endpoint is not implemented yet.")
+	cfg     config.Config
+	store   *store.Store
+	logger  *slog.Logger
+	limiter *ratelimit.Limiter
+	human   *human.Checker
+	ingest  *ingest.Client
+	addsvc  *subjects.Service
 }

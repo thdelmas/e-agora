@@ -21,17 +21,17 @@ onMounted(load)
 <template>
   <section class="leaderboard">
     <AccessBanner />
-    <h1>World rankings</h1>
-    <p class="muted">Reflects the aggregated preferences of anonymous visitors.</p>
+    <h1><span class="crown">🏛️</span> World rankings</h1>
+    <p class="muted">Forged head-to-head from the aggregated preferences of anonymous visitors.</p>
 
     <template v-if="board">
-      <p class="stat">Total votes cast (all visitors): {{ board.totalVotes }}</p>
+      <p class="stat">🗳️ {{ board.totalVotes.toLocaleString() }} votes cast by visitors worldwide</p>
       <ol class="rows">
         <LeaderboardRow v-for="entry in board.entries" :key="entry.subject.id" :entry="entry" />
       </ol>
     </template>
     <p v-else-if="error" class="muted">{{ error }}</p>
 
-    <RouterLink to="/" class="cta">Keep voting</RouterLink>
+    <RouterLink to="/" class="cta">← Back to the arena</RouterLink>
   </section>
 </template>

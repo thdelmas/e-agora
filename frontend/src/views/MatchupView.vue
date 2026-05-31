@@ -1,12 +1,31 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
+import { applyVote } from '../store'
 import PoliticianCard from '../components/PoliticianCard.vue'
 import LanguageNote from '../components/LanguageNote.vue'
+import HumanityCheckModal from '../components/HumanityCheckModal.vue'
+
+const route = useRoute()
 
 const matchup = ref(null)
 const error = ref('')
 const loading = ref(true)
+const busy = ref(false) // a vote is in flight
+const toast = ref('')
+
+const showHuman = ref(false)
+const pendingVote = ref(null) // { winnerId, loserId } awaiting humanity check
+
+const lockedHint = computed(() => route.query.locked === '1')
+
+let toastTimer
+function flash(msg, seconds = 3) {
+  toast.value = msg
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (toast.value = ''), seconds * 1000)
+}
 
 async function load() {
   loading.value = true
@@ -14,34 +33,103 @@ async function load() {
   try {
     matchup.value = await api.matchup()
   } catch (e) {
-    // The backend endpoints are stubbed until M3 — show a friendly state.
+    matchup.value = null
     error.value = e.message || 'Could not load a matchup.'
   } finally {
     loading.value = false
   }
 }
 
-onMounted(load)
+function prefer(winnerId) {
+  if (busy.value || !matchup.value) return
+  const { a, b } = matchup.value
+  const loserId = winnerId === a.id ? b.id : a.id
+  castVote(winnerId, loserId)
+}
+
+async function castVote(winnerId, loserId) {
+  busy.value = true
+  try {
+    const res = await api.vote(winnerId, loserId)
+    applyVote(res)
+    await load()
+  } catch (e) {
+    if (e.code === 'human_check_required') {
+      pendingVote.value = { winnerId, loserId }
+      showHuman.value = true
+    } else if (e.code === 'rate_limited') {
+      flash('Whoa — slow down a moment.', Number(e.retryAfter) || 3)
+    } else {
+      flash(e.message || 'Your vote didn’t go through.')
+    }
+  } finally {
+    busy.value = false
+  }
+}
+
+function onVerified() {
+  showHuman.value = false
+  const pv = pendingVote.value
+  pendingVote.value = null
+  if (pv) castVote(pv.winnerId, pv.loserId)
+}
+
+function onHumanClosed() {
+  showHuman.value = false
+  pendingVote.value = null
+}
+
+function onKey(e) {
+  if (showHuman.value || busy.value || !matchup.value) return
+  if (e.key === 'ArrowLeft') prefer(matchup.value.a.id)
+  else if (e.key === 'ArrowRight') prefer(matchup.value.b.id)
+  else if (e.key === 's' || e.key === 'S') load()
+}
+
+onMounted(() => {
+  load()
+  window.addEventListener('keydown', onKey)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
+  clearTimeout(toastTimer)
+})
 </script>
 
 <template>
   <section class="matchup">
-    <h1 class="prompt">Who do you prefer?</h1>
+    <p v-if="lockedHint" class="locked-hint">🔓 Vote once to unlock the rankings for 24 hours.</p>
 
-    <p v-if="loading" class="muted">Loading a matchup…</p>
+    <h1 class="prompt">Who do you <em>prefer?</em></h1>
+    <p class="subprompt">Two figures enter the agora. You decide who carries the day.</p>
 
-    <div v-else-if="matchup" class="cards">
-      <PoliticianCard :subject="matchup.a" />
-      <span class="vs">vs</span>
-      <PoliticianCard :subject="matchup.b" />
-      <LanguageNote v-if="matchup.fallbackApplied" :lang="matchup.displayLang" />
+    <p v-if="loading" class="muted">Summoning two challengers…</p>
+
+    <div v-else-if="matchup" class="cards" :class="{ busy }">
+      <PoliticianCard :subject="matchup.a" side="a" @prefer="prefer" />
+      <span class="vs" aria-hidden="true">VS</span>
+      <PoliticianCard :subject="matchup.b" side="b" @prefer="prefer" />
     </div>
 
     <p v-else class="muted">
       The agora is still being set up — check back soon.
-      <span class="detail">({{ error }})</span>
+      <span v-if="error" class="detail">({{ error }})</span>
     </p>
 
-    <button class="ghost" @click="load">Skip / show another pair</button>
+    <p v-if="matchup" class="privacy-note">
+      🔒 <strong>Your vote is anonymous.</strong> We record only your choice — never your identity.
+      No account, no email, no IP tracking, nothing that can be traced back to you.
+    </p>
+
+    <LanguageNote v-if="matchup && matchup.fallbackApplied" :lang="matchup.displayLang" />
+
+    <button class="ghost" :disabled="busy" @click="load">↻ Skip — show me another pair</button>
+    <p class="kbd muted">Tip: <kbd>←</kbd> / <kbd>→</kbd> to choose, <kbd>S</kbd> to skip.</p>
+
+    <transition name="fade">
+      <p v-if="toast" class="toast" role="status">{{ toast }}</p>
+    </transition>
+
+    <HumanityCheckModal v-if="showHuman" @verified="onVerified" @close="onHumanClosed" />
   </section>
 </template>

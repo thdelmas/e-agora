@@ -19,6 +19,7 @@ import (
 
 	"github.com/thdelmas/e-agora/backend/internal/config"
 	eagorahttp "github.com/thdelmas/e-agora/backend/internal/http"
+	"github.com/thdelmas/e-agora/backend/internal/ingest"
 	"github.com/thdelmas/e-agora/backend/internal/store"
 	"github.com/thdelmas/e-agora/backend/migrations"
 )
@@ -28,6 +29,16 @@ func main() {
 	slog.SetDefault(logger)
 
 	cfg := config.Load()
+
+	// The token secret signs access tokens (R10) and humanity challenges (R12);
+	// refuse to boot without one, and warn loudly on the insecure dev default.
+	if cfg.TokenSecret == "" {
+		logger.Error("EAGORA_TOKEN_SECRET is required (it signs access tokens and humanity challenges)")
+		os.Exit(1)
+	}
+	if cfg.TokenSecret == "dev-insecure-change-me" {
+		logger.Warn("EAGORA_TOKEN_SECRET is the insecure dev default — set a strong secret in production")
+	}
 
 	// Connect to PostgreSQL and apply migrations before serving. A short,
 	// bounded startup context keeps a dead database from hanging boot.
@@ -50,6 +61,19 @@ func main() {
 	}
 	logger.Info("migrations up to date", "applied_this_boot", applied)
 
+	// rootCtx ties background seeding and shutdown to one interrupt signal.
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Seed the pool from Wikidata/Wikipedia in the background (honoring
+	// EAGORA_SEED) so the server is available immediately; a populated pool
+	// short-circuits in 'auto'.
+	go func() {
+		if err := ingest.Run(rootCtx, db, cfg.Seed, logger); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("seed failed", "err", err)
+		}
+	}()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           eagorahttp.NewRouter(cfg, db, logger),
@@ -65,9 +89,7 @@ func main() {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	<-ctx.Done()
+	<-rootCtx.Done()
 
 	logger.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

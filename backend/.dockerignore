@@ -1,0 +1,5 @@
+# Keep the build context lean and reproducible.
+.env
+*.test
+/eagora
+eagora

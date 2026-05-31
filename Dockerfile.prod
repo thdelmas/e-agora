@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+# Production single image: builds the SPA and the Go backend, then ships one
+# binary that serves BOTH the API and the app same-origin (M6). Needs only a
+# PostgreSQL alongside it.
+#   docker build -f Dockerfile.prod -t e-agora .
+#   docker run -p 8080:8080 -e DATABASE_URL=… -e EAGORA_TOKEN_SECRET=… e-agora
+
+FROM node:20-alpine AS web
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/eagora ./cmd/server
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/eagora /eagora
+COPY --from=web /app/dist /web
+ENV EAGORA_STATIC_DIR=/web
+EXPOSE 8080
+USER nonroot:nonroot
+ENTRYPOINT ["/eagora"]

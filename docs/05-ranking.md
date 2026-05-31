@@ -1,104 +1,104 @@
 # 05 — Ranking & Matchup
 
-How preferences become an order. Two parts: the **rating update** (Elo) applied
-on each vote, and the **pairing** that decides which A vs B to show.
+How preferences become an order. Two parts: the **rating update** (Glicko-2)
+applied on each vote, and the **pairing** that decides which A vs B to show.
 
-## Rating model: Elo
+## Rating model: Glicko-2
 
-Elo expresses each subject's strength as a single number and updates it after
-every head-to-head, moving rating from the loser to the winner by an amount that
-depends on how *surprising* the result was. It is the right tool here: our only
-signal is pairwise "A beat B", which is exactly Elo's input.
+Glicko-2 is Elo's successor. Where Elo carries one number per subject, Glicko-2
+carries three, and that extra state is exactly what a public, visitor-grown pool
+needs:
+
+| Symbol | Name | What it buys us |
+|--------|------|-----------------|
+| `R`  | rating | strength, same ~1500 scale as Elo |
+| `RD` | rating deviation | **how sure** we are of `R` — shrinks with evidence, so a freshly-added subject moves fast and a settled one barely twitches |
+| `σ`  | volatility | how *erratic* a subject's results have been; lets a genuinely shifting reputation move faster than a steady one |
+
+Our only signal is still pairwise "A beat B", which is exactly Glicko-2's input.
+We treat **each vote as a one-game rating period** for both subjects — the
+winner and loser are each updated against the other's pre-vote state. (Glicko-2
+is classically run over batched rating periods; per-vote is the incremental
+specialization. We deliberately skip the between-period RD *aging* step: a
+politician's appeal is roughly stationary, so we don't inflate uncertainty just
+because time passed — only the volatility term inflates RD.)
 
 ### Parameters
 
-| Parameter | Value (v1) | Notes |
-|-----------|------------|-------|
+| Parameter | Value | Notes |
+|-----------|-------|-------|
 | Initial rating `R₀` | **1500** | every new subject starts here |
-| K-factor `K` | **32** | update step size; larger = faster, noisier |
-| Scale | **400** | standard Elo logistic scale |
-
-> `K=32` is a deliberate v1 default: responsive enough to sort a fresh pool
-> quickly. If ratings look jittery once vote volume is high, lower `K` (e.g. 24
-> or 16), or make `K` decay with `comparisons` (see §Enhancements).
+| Initial deviation `RD₀` | **350** | maximal uncertainty for a new subject |
+| Initial volatility `σ₀` | **0.06** | Glickman's default |
+| System constant `τ` | **0.5** | constrains volatility change; 0.3–1.2 typical, lower = steadier |
+| Scale | **173.7178** | converts display `R`/`RD` ↔ Glicko-2 internal `μ`/`φ` |
 
 ### Update formula
 
-For a vote where **W** beats **L**, with current ratings `R_W`, `R_L`:
+Convert to the internal scale `μ = (R − 1500)/173.7178`, `φ = RD/173.7178`, then
+for the single opponent `j` with score `s` (1 for a win, 0 for a loss):
 
 ```
-Expected score for W:   E_W = 1 / (1 + 10^((R_L − R_W) / 400))
-Expected score for L:   E_L = 1 − E_W
-
-Actual scores:          S_W = 1,  S_L = 0
-
-New ratings:
-  R_W' = R_W + K · (S_W − E_W)
-  R_L' = R_L + K · (S_L − E_L)
+g(φ)      = 1 / √(1 + 3φ²/π²)
+E         = 1 / (1 + exp(−g(φ_j)·(μ − μ_j)))
+v         = 1 / ( g(φ_j)² · E · (1−E) )          (estimated variance)
+Δ         = v · g(φ_j) · (s − E)                 (rating-direction quantity)
+σ'        = solve Glickman's volatility equation (Illinois algorithm)
+φ*        = √(φ² + σ'²)                           (RD inflated by volatility)
+φ'        = 1 / √(1/φ*² + 1/v)                    (new deviation, tighter)
+μ'        = μ + φ'² · g(φ_j) · (s − E)            (new rating)
 ```
+
+then convert back: `R' = 1500 + 173.7178·μ'`, `RD' = 173.7178·φ'`.
 
 Properties (sanity checks for tests):
-- Conservation: `(R_W' − R_W) = −(R_L' − R_L)` → total rating is preserved.
-- Upset (low-rated beats high-rated) → large swing; expected win → small swing.
-- A win never decreases the winner's rating; a loss never increases the loser's.
+- **Not zero-sum** (the key difference from Elo): the winner's gain need not
+  equal the loser's loss — each moves in proportion to its *own* RD. An unproven
+  subject swings hard; a settled one barely moves on the same result.
+- RD shrinks after a played game (more evidence) and never goes non-positive.
+- A win raises the winner and lowers the loser; an upset swings more than an
+  expected result, for equally-certain subjects.
 
-### Worked example
+### Worked example (validation anchor)
 
-`R_W = 1500`, `R_L = 1500`, `K = 32`:
+The unit tests reproduce Glickman's own published example: a player at
+`R=1500, RD=200, σ=0.06` (with `τ=0.5`) who in one rating period beats
+`1400/30`, then loses to `1550/100` and `1700/300`, must end at:
+
 ```
-E_W = 1/(1+10^(0/400)) = 0.5
-R_W' = 1500 + 32·(1 − 0.5) = 1516
-R_L' = 1500 + 32·(0 − 0.5) = 1484
+R' ≈ 1464.06   RD' ≈ 151.52   σ' ≈ 0.05999
 ```
-A perfectly even matchup moves ±16. If instead `R_W = 1300`, `R_L = 1700`
-(big upset):
-```
-E_W = 1/(1+10^(400/400)) = 1/(1+10) ≈ 0.0909
-R_W' ≈ 1300 + 32·(1 − 0.0909) ≈ 1329.1
-R_L' ≈ 1700 + 32·(0 − 0.9091) ≈ 1670.9   (≈ ±29)
-```
+
+Matching these to the penny pins the whole pipeline (`g`, `E`, variance, the
+volatility solver, and the scale conversions) to an external reference.
 
 ### Reference implementation (Go, pure function)
 
+See [`internal/ranking/glicko.go`](../backend/internal/ranking/glicko.go). The
+exported surface is value-typed and I/O-free:
+
 ```go
-// internal/ranking/elo.go
-package ranking
+// Rating is a subject's full Glicko-2 state.
+type Rating struct{ R, RD, Vol float64 }
 
-import "math"
-
-const (
-    DefaultRating = 1500.0
-    KFactor       = 32.0
-    scale         = 400.0
-)
-
-// Expected score of A against B.
-func expected(rA, rB float64) float64 {
-    return 1.0 / (1.0 + math.Pow(10, (rB-rA)/scale))
-}
-
-// Update returns the winner's and loser's new ratings after W beats L.
-func Update(rWinner, rLoser float64) (newWinner, newLoser float64) {
-    eW := expected(rWinner, rLoser)
-    newWinner = rWinner + KFactor*(1.0-eW)
-    newLoser  = rLoser  + KFactor*(0.0-(1.0-eW))
-    return
-}
+// Update returns the winner's and loser's new states after W beats L,
+// each updated against the other's pre-vote state (one game, 1 vs 0).
+func Update(winner, loser Rating) (newWinner, newLoser Rating)
 ```
 
-Unit tests assert: even matchup → ±16; conservation; monotonicity; upset
-magnitude > expected-result magnitude.
+Internally a multi-game `apply` runs the algorithm step for step (so the
+worked example above can be tested directly); `Update` calls it with one game.
 
 ### Applying an update (transactional)
 
 On `POST /api/votes` (see [04](04-api.md)), inside one PostgreSQL transaction:
 1. `SELECT … FOR UPDATE` the winner and loser rows (locked in ascending `id`
-   order to avoid deadlocks), reading `rating` and recording them as
-   `*_rating_before`;
-2. compute new ratings via `ranking.Update`;
-3. `UPDATE subjects` for both: set `rating`, `wins`/`losses += 1`,
-   `comparisons += 1`, `updated_at = now()`;
-4. `INSERT` the `votes` row;
+   order to avoid deadlocks), reading `rating, rd, volatility` and recording
+   them as `*_rating_before` / `*_rd_before` / `*_vol_before`;
+2. compute new states via `ranking.Update`;
+3. `UPDATE subjects` for both: set `rating`, `rd`, `volatility`,
+   `wins`/`losses += 1`, `comparisons += 1`, `updated_at = now()`;
+4. `INSERT` the `votes` row (with the pre-vote snapshots);
 5. `UPDATE sessions SET contributions = contributions + 1`.
 
 The row locks serialize concurrent votes touching the same subjects, so ratings
@@ -109,29 +109,39 @@ stay consistent; votes on disjoint pairs proceed in parallel.
 Which two subjects to show. Goal: keep it interesting **and** give every subject
 enough comparisons for a meaningful rating.
 
-### v1 strategy: uniform random pair
-
-Pick two **distinct active** subjects uniformly at random.
-- Pros: dead simple; unbiased; trivially correct.
-- Cons: with many subjects, coverage is slow and high-rated/low-rated extremes
-  meet rarely.
-
-```sql
-SELECT id FROM subjects WHERE active ORDER BY random() LIMIT 2;
-```
-(Fine for a small pool. As visitor-added subjects grow the pool, avoid the full
-sort — e.g. cache the active id set in memory and pick two in Go, or use
-`TABLESAMPLE`.)
-
-### v1.1 enhancement: coverage bias (recommended early)
+### Strategy: coverage-biased pair (current)
 
 Bias selection toward subjects with **few comparisons** so the whole pool gets
-rated quickly:
-1. pick subject A weighted by `1 / (comparisons + 1)` (favor under-compared);
-2. pick subject B similarly, `B ≠ A`.
+rated — and its `RD` tightened — quickly. This is the **supply side** of the
+conservative leaderboard: ranking by `rating − 2·RD` buries a subject until its
+`RD` shrinks, and `RD` only shrinks when the subject is shown. Coverage bias is
+what makes sure unproven subjects actually get the votes that let them climb;
+without it, conservative ordering would ossify the board to the seed pool.
 
-Uses `INDEX(active, comparisons)`. Keeps things fair without making matchups
-predictable.
+Weight each subject by `wᵢ = 1 / (comparisons + 1)` and draw two distinct ones.
+We realize this with **Efraimidis–Spirakis** weighted sampling without
+replacement — assign each row a key `random()^(1/wᵢ)` and take the two largest:
+
+```sql
+SELECT id FROM subjects WHERE active
+ORDER BY power(random(), comparisons + 1) DESC LIMIT 2;
+```
+An unseen subject (`comparisons = 0`) draws a plain uniform; a heavily-compared
+one draws a vanishing key and is rarely shown. With an all-zero pool this is
+exactly uniform random, so it degrades gracefully and needs no special-casing
+for a fresh deploy.
+
+(Full scan + sort, like the prior `ORDER BY random()`. Fine for a small pool;
+as visitor-added subjects grow it, avoid the full sort — cache the active id set
+in memory and pick two in Go, or use `TABLESAMPLE`.)
+
+> **Known trade-off — assortative pairing.** Because *both* picks are weighted,
+> newcomers mostly meet other newcomers and rarely the established field, so
+> their ratings calibrate against the veterans slowly. If that matters, weight
+> only one pick by coverage and draw the opponent uniformly (often an
+> established, low-`RD` subject) — a Glicko-2 game against a *certain* opponent
+> tightens `RD` more per vote anyway. Cheap to switch; left as the literal
+> spec for now.
 
 ### Possible later: informative pairing
 
@@ -147,28 +157,37 @@ repetitive. Defer until volume justifies it.
 - No attempt in v1 to avoid showing a visitor the same pair twice (cheap to add
   later via per-session recent history if desired).
 
-## Ranking (the leaderboard order)
+## Leaderboard ordering
 
 ```
-ORDER BY rating DESC, comparisons DESC, canonical_name ASC
+ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
 ```
-- primary: Elo `rating` (R6 — preference-driven);
-- tie-break 1: more `comparisons` ranks higher (more evidence);
+- primary: the **conservative rating** `R − 2·RD` (R6 — preference-driven). This
+  is Glickman's recommended display ordering: a subject climbs only once its
+  rating is both high *and* well-established, so a lucky 3-vote run can't top the
+  board. With `RD` floored near 50, the `−2·RD` term costs a settled subject
+  ~100 points and an unproven one ~700;
+- tie-break 1: lower `RD` ranks higher (more evidence);
 - tie-break 2: `canonical_name` ascending (stable, deterministic for tests).
+
+The board displays the raw `R` and surfaces `RD` so the UI can mark a
+high-deviation entry **provisional** (see [01](01-functional-spec.md)).
 
 ### Cold-start note
 
-Early on, everyone sits near 1500 and a few votes cause big reshuffles. That is
-expected and self-corrects with volume. Showing `comparisons` next to each entry
-(per [01](01-functional-spec.md)) sets the right expectation about confidence.
+A new subject starts at `1500 ± 350`, so its conservative rating (`~800`) puts
+it near the *bottom* until votes tighten its `RD` — by design, unproven subjects
+don't masquerade as ranked. Because every subject starts at the same `RD`, the
+day-one board order still tracks raw rating, then differentiates as evidence
+accrues.
 
 ## Enhancements backlog (not v1)
 
-- **K decay**: `K = 32` while `comparisons < 30`, then `16` — stabilizes
-  established subjects while keeping newcomers nimble.
-- **Glicko-2 / TrueSkill**: model rating *uncertainty* explicitly; better for
-  sparse data, more complex. Revisit if Elo proves too jittery.
-- **Provisional flag**: hide or mark subjects with `comparisons < N` on the
-  board until they have enough data.
-- **Recompute endpoint/CLI**: replay `votes` to rebuild ratings after a
-  parameter change (enabled by the append-only `votes` log, see [03](03-data-model.md)).
+- **Rating periods**: batch votes into periodic Glicko-2 updates (instead of the
+  per-vote incremental form) and add the between-period RD-aging step — more
+  faithful to the paper if vote volume ever makes per-vote updates noisy.
+- **Volatility-aware display**: surface `σ` (e.g. a "trending" badge) when a
+  subject's reputation is genuinely shifting.
+- **Recompute endpoint/CLI**: replay `votes` (which snapshot full pre-vote
+  state) to rebuild ratings after a parameter change — enabled by the
+  append-only `votes` log, see [03](03-data-model.md).

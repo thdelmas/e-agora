@@ -28,7 +28,8 @@ export const api = {
     return request(`/leaderboard${p ? `?${p}` : ''}`)
   },
   humanChallenge: () => request('/human/challenge'),
-  humanVerify: (challengeId, answer) => request('/human/verify', { method: 'POST', body: { challengeId, answer } }),
+  humanVerify: (challengeId, answer, timing) =>
+    request('/human/verify', { method: 'POST', body: { challengeId, answer, timing } }),
   searchSubjects: (q, lang) => request(`/subjects/search?q=${encodeURIComponent(q)}${lang ? `&lang=${lang}` : ''}`),
   addSubject: (payload) => request('/subjects', { method: 'POST', body: payload }),
 }

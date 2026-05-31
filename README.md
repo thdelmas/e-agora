@@ -41,7 +41,7 @@ These are the non-negotiable constraints the product is built around:
 | i18n      | Per-language summaries, anchored on Wikidata QIDs |
 | Gate      | Stateless signed 24h access token (anonymous) |
 | Anti-abuse| Humanity check (bots can't vote) + per-session vote rate limit; one add per token |
-| Ranking   | Elo rating (pairwise)                   |
+| Ranking   | Glicko-2 rating (pairwise, with uncertainty) |
 
 ## Documentation
 
@@ -55,26 +55,59 @@ them in order:
 | 02 | [Architecture](docs/02-architecture.md) | Components, tech choices, repo layout |
 | 03 | [Data model](docs/03-data-model.md) | PostgreSQL schema and entities |
 | 04 | [API](docs/04-api.md) | REST contract between frontend and backend |
-| 05 | [Ranking](docs/05-ranking.md) | Elo algorithm and matchup pairing |
+| 05 | [Ranking](docs/05-ranking.md) | Glicko-2 algorithm and matchup pairing |
 | 06 | [Wikipedia ingestion](docs/06-wikipedia-ingestion.md) | How the politician pool is sourced |
 | 07 | [Roadmap](docs/07-roadmap.md) | Build milestones and acceptance criteria |
+| 08 | [Deploy](docs/08-deploy.md) | Free hosting: Neon Postgres + Render, custom domain |
 
 ## Status
 
-🚧 **M0 — scaffolding (done).** The repo skeleton is in place and builds:
-`backend/` (Go module, chi router, `/api/healthz`, embedded `0001_init.sql`, Elo
-package + tests) and `frontend/` (Vue 3 + Vite + Router). API endpoints beyond
-`healthz` return `501` until wired in M1–M5. See the
-[roadmap](docs/07-roadmap.md) for the build order.
+🚧 **Building.** M0 (scaffolding) and M1 (DB + migrations + `/api/healthz`) are
+done. **M2 (ingestion)** is in progress: the pool seeds on first boot from a
+committed Wikidata snapshot of UN-country leaders (head of state + head of
+government), enriched via the Wikipedia summary API. Endpoints beyond `healthz`
+return `501` until wired in M3–M5. See the [roadmap](docs/07-roadmap.md).
 
 ## Local development
 
-```sh
-docker compose up -d db          # PostgreSQL on :5432 (matches .env.example)
+Whole stack in Docker:
 
-cd backend && go run ./cmd/server   # serves http://localhost:8080/api/healthz
+```sh
+make dev    # build + run db + backend + frontend
+# frontend → http://localhost:5173   backend → http://localhost:8080/api/healthz
+```
+
+…or run pieces on the host:
+
+```sh
+docker compose up -d db                     # just PostgreSQL on :5432
+cd backend && go run ./cmd/server           # http://localhost:8080/api/healthz
 cd frontend && npm install && npm run dev   # Vite on :5173, proxies /api → :8080
 ```
 
-Backend tests: `cd backend && go test ./...` (Elo properties pass today).
-Copy `.env.example` → `.env` and set `EAGORA_TOKEN_SECRET` before prod.
+`make help` lists tasks; `make test` runs backend tests. Copy `.env.example` →
+`.env` and set `EAGORA_TOKEN_SECRET` before prod. First boot seeds the pool from
+Wikidata/Wikipedia in the background (`EAGORA_SEED=off` to skip, `force` to
+re-ingest).
+
+## Production
+
+One image serves the API **and** the SPA same-origin; it needs only a
+PostgreSQL alongside it.
+
+```sh
+make prod-build                              # → e-agora:latest (SPA + backend)
+docker run -p 8080:8080 \
+  -e DATABASE_URL='postgres://…' \
+  -e EAGORA_TOKEN_SECRET='<a strong secret>' \
+  e-agora:latest                             # serves the app on :8080
+```
+
+`EAGORA_TOKEN_SECRET` is **required** — the server refuses to boot without it
+(it signs the access token and humanity challenges). The image sets
+`EAGORA_STATIC_DIR=/web`; point it elsewhere to serve a different build. When
+`EAGORA_STATIC_DIR` is unset (dev), Vite serves the SPA instead.
+
+To host it **for free** (Neon Postgres + Render, with a custom domain over
+HTTPS), follow [docs/08-deploy.md](docs/08-deploy.md) — the repo's
+[`render.yaml`](render.yaml) deploys this same image in a few clicks.

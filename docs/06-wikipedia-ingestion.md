@@ -60,9 +60,11 @@ SELECT DISTINCT ?country ?countryLabel ?person ?personLabel WHERE {
   appears once — dedup by person QID.
 
 **Reproducibility & offline**: the query result is cached to a committed
-snapshot `backend/data/un_leaders.json` (`[{ "qid": "Q…", "country": "…" }]`),
-which is the default seed input. Re-running the query (a maintenance task)
-refreshes the snapshot when leaders change.
+snapshot `backend/data/un_leaders.json`
+(`[{ "qid": "Q…", "country": "…", "name": "…" }]`; `name` is a label hint used
+for logs and the offline fallback), embedded into the binary and used as the
+default seed input. Re-running the query (a maintenance task) refreshes the
+snapshot when leaders change.
 
 ## Step 2 — Resolve identity, languages, and English content
 

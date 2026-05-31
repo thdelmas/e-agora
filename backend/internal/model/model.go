@@ -13,7 +13,9 @@ type Subject struct {
 	Country        string
 	Source         string // "seed" | "user"
 	AvailableLangs []string
-	Rating         float64
+	Rating         float64 // Glicko-2 rating (~1500 scale)
+	RD             float64 // Glicko-2 rating deviation (uncertainty)
+	Volatility     float64 // Glicko-2 volatility (σ)
 	Wins           int
 	Losses         int
 	Comparisons    int
@@ -33,7 +35,9 @@ type Translation struct {
 	FetchedAt    time.Time
 }
 
-// Vote is an append-only record of a single preference.
+// Vote is an append-only record of a single preference. The *Before fields
+// snapshot each subject's full Glicko-2 state at vote time so ratings remain
+// replayable from the log (docs/03-data-model.md §votes).
 type Vote struct {
 	ID                 int64
 	SessionID          string
@@ -41,6 +45,10 @@ type Vote struct {
 	LoserID            int64
 	WinnerRatingBefore float64
 	LoserRatingBefore  float64
+	WinnerRDBefore     float64
+	LoserRDBefore      float64
+	WinnerVolBefore    float64
+	LoserVolBefore     float64
 	CreatedAt          time.Time
 }
 
