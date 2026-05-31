@@ -5,6 +5,9 @@ async function request(path, { method = 'GET', body } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
+    // The matchup, leaderboard and stats all change as votes come in, so never
+    // serve a stale heuristically-cached GET — always revalidate against the API.
+    cache: 'no-store',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
