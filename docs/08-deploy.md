@@ -105,6 +105,11 @@ the upstreams.
    automatically (a few minutes). Done — one origin serves both the app and the
    API over HTTPS, so there's no second host, no CORS, and no second domain to
    manage.
+4. **Set `EAGORA_PUBLIC_URL`** to that origin (e.g. `https://e-agora.org`, no
+   trailing slash) so the canonical/Open Graph tags, `robots.txt`, and
+   `sitemap.xml` all point at the one host. Leaving it blank works (the backend
+   derives the origin per request) but lets the `*.onrender.com` URL and your
+   domain self-canonicalise as duplicates — set it once the domain is live.
 
 ## 5. Verify
 
@@ -112,6 +117,9 @@ the upstreams.
 - `https://your-domain/` → the app loads; cast a vote, which unlocks the
   leaderboard (the 24h access gate) — confirming the API, DB, and SPA are all
   wired same-origin.
+- `https://your-domain/robots.txt` and `/sitemap.xml` → return text/XML that
+  reference your domain (or `EAGORA_PUBLIC_URL` if set). `curl -s
+  https://your-domain/ | grep canonical` should show the canonical/OG tags.
 
 ## Environment variables (production)
 
@@ -121,6 +129,7 @@ the upstreams.
 | `EAGORA_TOKEN_SECRET` | strong random secret | Render generates it; required to boot |
 | `EAGORA_SEED` | `auto` (or `off` after a local seed) | first-boot ingestion |
 | `EAGORA_STATIC_DIR` | `/web` | already baked into `Dockerfile.prod` |
+| `EAGORA_PUBLIC_URL` | `https://your-domain` (no trailing slash) | canonical origin for SEO tags, `robots.txt`, `sitemap.xml`; blank → derived per request |
 | `EAGORA_ADDR` | `:8080` (default) | matches the image's `EXPOSE`; Render detects it |
 
 All other tunables ([`config.go`](../backend/internal/config/config.go)) keep

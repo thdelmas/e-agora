@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="e-agora">
+  <rect width="64" height="64" rx="14" fill="#1f5a40"/>
+  <g fill="#f5f1e6">
+    <!-- pediment -->
+    <path d="M32 11 L51 24 H13 Z"/>
+    <!-- architrave -->
+    <rect x="14" y="26" width="36" height="4" rx="1"/>
+    <!-- columns -->
+    <rect x="18" y="31" width="4" height="15"/>
+    <rect x="26" y="31" width="4" height="15"/>
+    <rect x="34" y="31" width="4" height="15"/>
+    <rect x="42" y="31" width="4" height="15"/>
+    <!-- stylobate -->
+    <rect x="13" y="47" width="38" height="4" rx="1"/>
+  </g>
+</svg>

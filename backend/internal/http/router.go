@@ -68,7 +68,7 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 	// paths when EAGORA_STATIC_DIR is set. In dev the Vite server does this.
 	if cfg.StaticDir != "" {
 		logger.Info("serving SPA", "dir", cfg.StaticDir)
-		r.Handle("/*", spaHandler(cfg.StaticDir))
+		r.Handle("/*", spaHandler(cfg.StaticDir, cfg.PublicURL))
 	}
 
 	return r

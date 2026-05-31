@@ -6,6 +6,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 	HumanTTL      time.Duration // EAGORA_HUMAN_TTL
 	StaticDir     string        // EAGORA_STATIC_DIR: serve the built SPA same-origin (prod)
 	CORSOrigin    string        // EAGORA_CORS_ORIGIN (dev only)
+	PublicURL     string        // EAGORA_PUBLIC_URL: canonical base URL for SEO (no trailing slash)
 }
 
 // Load reads configuration from the environment, applying documented defaults.
@@ -44,6 +46,7 @@ func Load() Config {
 		HumanTTL:      envDuration("EAGORA_HUMAN_TTL", 24*time.Hour),
 		StaticDir:     env("EAGORA_STATIC_DIR", ""),
 		CORSOrigin:    env("EAGORA_CORS_ORIGIN", ""),
+		PublicURL:     strings.TrimRight(env("EAGORA_PUBLIC_URL", ""), "/"),
 	}
 }
 
