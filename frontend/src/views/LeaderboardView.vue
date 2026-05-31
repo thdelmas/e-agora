@@ -1,8 +1,10 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import LeaderboardRow from '../components/LeaderboardRow.vue'
 import AccessBanner from '../components/AccessBanner.vue'
+import AddSubjectModal from '../components/AddSubjectModal.vue'
+import { me } from '../store'
 
 // The pool holds hundreds of subjects, so we page through them instead of
 // capping the view at the first 100. Each scroll to the bottom (or click of the
@@ -23,6 +25,15 @@ const seen = new Set() // subject ids already shown — guards against dup keys
 
 const sentinel = ref(null)
 let observer = null
+
+// Reaching the foot of the rankings is a natural moment to add a missing name,
+// so we surface the same add flow the nav offers (one add per 24h window).
+const showAdd = ref(false)
+const addTitle = computed(() =>
+  me.canAdd
+    ? 'Add a person with a Wikipedia page'
+    : "You've already added someone in this 24h window",
+)
 
 async function loadMore() {
   if (loading.value || reachedEnd.value) return
@@ -87,7 +98,12 @@ onUnmounted(() => observer?.disconnect())
       >
         {{ loading ? 'Loading…' : 'Load more' }}
       </button>
-      <p v-else class="muted end-note">— that's everyone in the agora —</p>
+      <div v-else class="end-actions">
+        <p class="muted end-note">— that's everyone in the agora —</p>
+        <button class="cta" :disabled="!me.canAdd" :title="addTitle" @click="showAdd = true">
+          + Add someone
+        </button>
+      </div>
     </template>
 
     <p v-else-if="loading" class="muted">Tallying the rankings…</p>
@@ -95,5 +111,7 @@ onUnmounted(() => observer?.disconnect())
     <p v-else-if="started" class="muted">No rankings yet — be the first to cast a vote.</p>
 
     <RouterLink to="/" class="cta">← Back to the arena</RouterLink>
+
+    <AddSubjectModal v-if="showAdd" @close="showAdd = false" />
   </section>
 </template>

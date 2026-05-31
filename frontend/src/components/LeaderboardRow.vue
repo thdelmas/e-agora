@@ -29,7 +29,7 @@ const provisional = computed(() => rd.value > 110)
     <img v-if="entry.subject.imageUrl" :src="entry.subject.imageUrl" :alt="entry.subject.name" class="thumb" />
     <span v-else class="thumb" aria-hidden="true"></span>
 
-    <span>
+    <span class="name-cell">
       <span class="name">{{ entry.subject.name }}</span>
     </span>
 

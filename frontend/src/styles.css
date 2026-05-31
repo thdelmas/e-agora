@@ -157,7 +157,11 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
   display: inline-block; margin-top: 1.25rem; font-weight: 700; text-decoration: none;
   color: var(--laurel-deep); border-bottom: 2px solid var(--gold); padding-bottom: 1px;
 }
-.cta:hover { color: var(--teal-deep); }
+.cta:hover:not(:disabled) { color: var(--teal-deep); }
+/* A <button> wearing .cta sheds the default button chrome so it reads as the
+   same gold-underlined text link as the "Back to the arena" CTA. */
+button.cta { background: transparent; border: 0; border-bottom: 2px solid var(--gold); border-radius: 0; padding: 0 0 1px; }
+button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); cursor: not-allowed; }
 
 .muted { color: var(--muted); }
 .detail { font-size: 0.85rem; }
@@ -339,7 +343,8 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .row:hover { transform: translateX(3px); box-shadow: var(--shadow-md); }
 .rank { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; color: var(--muted); text-align: center; }
 .thumb { width: 46px; height: 46px; object-fit: cover; border-radius: 10px; background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line); }
-.row .name { font-size: 1rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name-cell { min-width: 0; }
+.row .name { display: block; font-size: 1rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Win/loss split bar */
 .winbar { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
@@ -365,15 +370,22 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .load-more { margin-top: 1rem; min-width: 9rem; }
 .load-more:disabled { opacity: 0.7; cursor: default; }
 .end-note { text-align: center; margin-top: 1rem; font-size: 0.85rem; letter-spacing: 0.02em; }
+.end-actions { text-align: center; }
+.end-actions .cta { margin-top: 0.75rem; }
 
 /* -------------------------------------------------------------------- Modal */
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 50;
   background: rgba(20, 26, 38, 0.55); backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center; padding: 1rem;
+  /* A single flex child centred with margin:auto stays fully scrollable when it
+     outgrows the viewport (a short phone, or the on-screen keyboard open) —
+     unlike align-items:center, which makes the overflowing top unreachable. */
+  display: flex; padding: 1rem;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   animation: fade-in 0.2s ease both;
 }
 .modal {
+  margin: auto; /* centres when it fits; pins to top and scrolls when it doesn't */
   background: linear-gradient(180deg, var(--card), var(--card-2));
   padding: 1.6rem; border-radius: var(--radius); max-width: 440px; width: 100%;
   border: 1px solid var(--border); box-shadow: var(--shadow-lg);
@@ -404,7 +416,9 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 }
 .add-input:focus { outline: none; border-color: var(--laurel); box-shadow: 0 0 0 3px rgba(31, 110, 76, 0.15); }
 
-.search-results { list-style: none; padding: 0; margin: 0.35rem 0; max-height: 300px; overflow-y: auto; }
+/* Cap to whichever is smaller so the input + Cancel stay visible on short
+   phones (where 300px would push them off-screen) while desktops keep the room. */
+.search-results { list-style: none; padding: 0; margin: 0.35rem 0; max-height: min(300px, 42vh); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .search-results .result {
   display: flex; gap: 0.65rem; align-items: center; width: 100%; text-align: left;
   border: none; border-radius: 10px; padding: 0.55rem; background: transparent; transition: background 0.14s;
@@ -581,6 +595,9 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
   .content { padding: 1.25rem 1rem 2.5rem; }
   .row { grid-template-columns: 2rem 40px minmax(0, 1fr) auto; gap: 0.6rem; }
   .winbar { display: none; }
+  .modal-backdrop { padding: 0.6rem; }
+  .modal { padding: 1.25rem; }
+  .modal h2 { font-size: 1.3rem; }
 }
 
 /* ----------------------------------------------------- Respect motion prefs */
