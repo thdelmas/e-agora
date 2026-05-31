@@ -165,7 +165,9 @@ mint or refresh the token — only voting starts/holds the 24h window (R10).
 Appears when an un-verified session tries to vote (R12). Anonymous; proves "a
 thinking human," not *who*. Bots-can't-vote is the goal.
 
-**Mechanic — refuse the loyalty oath (dissent-based)**
+Multi-signal, **click-only** (no typing — accessible by design).
+
+**Signal 1 — refuse the loyalty oath (hard / semantic)**
 - Framing copy, civic and a little wry: *"The agora is for citizens who think
   for themselves. Don't just agree — decide."*
 - A **sycophantic political "oath"** drawn from a rotating pool, e.g. *"I fully
@@ -177,20 +179,30 @@ thinking human," not *who*. Bots-can't-vote is the goal.
   where the honest action is to *agree*, so an "always refuse" bot also fails;
   the prompt pool and option order rotate per challenge.
 
+**Signal 2 — interaction timing (soft / behavioral, no typing)**
+- The client reports the natural timing of the interaction — how long between the
+  oath appearing and the choice, whether the click is *suspiciously instant*, and
+  coarse pointer/touch cadence. Scripted/instant patterns lower confidence and
+  trigger another round; they **never hard-fail on their own** (a slow or
+  assistive-tech user must not be blocked). Timing is ephemeral and **not stored**.
+
 **Outcomes**
-- **Pass** → the session becomes **human-verified** for a configurable window
-  (default 24h); the pending vote proceeds automatically and the modal closes.
-- **Fail** → a fresh challenge with a different prompt and a gentle nudge (*"A
-  citizen of the agora thinks for themselves — try again."*). Repeated failures
+- **Pass** if the dissent choice is correct (Signal 1) and the interaction timing
+  isn't bot-flagged (Signal 2): the session becomes **human-verified** for a
+  configurable window (default 24h), the modal closes, and the pending vote
+  proceeds automatically.
+- **Wrong choice** → a fresh challenge with a different prompt. Repeated failures
   fall under the rate limit (R11).
 
 **Notes**
 - Re-checked only when the window lapses (Q2) — not every vote.
-- Keyboard- and screen-reader-accessible (plain text + buttons; the satire is in
-  the copy, never conveyed by color/image alone).
+- **Accessibility first**: click-only, keyboard- and screen-reader-friendly; the
+  satire lives in the copy, never in color/image alone; Signal 2 can only *add*
+  friction, never single-handedly block a real person.
 - **Honest limitation** (surfaced in [04](04-api.md) §Abuse, Overview Q8): this
   deters naive scripts and compliant LLM bots, not a determined adversary who
-  studies the pass-rule. Pluggable so a stronger check can be layered.
+  studies the pass-rule or emulates human timing. Pluggable so a stronger check
+  can be layered.
 
 ## Rules
 

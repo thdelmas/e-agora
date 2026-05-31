@@ -155,9 +155,13 @@ e-agora/
   `POST /api/human/verify` checks the signature/expiry and that the submitted
   answer satisfies the pass condition, then sets `sessions.human_verified_until =
   now + EAGORA_HUMAN_TTL`. No challenge table (stateless); the nonce + short exp
-  bound replay. The provider is an **interface** (`dissent` default; `turnstile`
-  / `pow` selectable via `EAGORA_HUMAN_PROVIDER`) so a stronger/managed check can
-  replace or layer without API changes.
+  bound replay. One extra signal rides along: a **client interaction-timing
+  summary** (decide-latency, instant-click flag, coarse pointer cadence — **no
+  typing**) is a *soft* signal that can force another round but **never
+  hard-fails alone** (accessibility); timing is evaluated ephemerally and not
+  stored. The provider is an **interface** (`dissent`
+  default; `turnstile` / `pow` selectable via `EAGORA_HUMAN_PROVIDER`) so a
+  stronger/managed check can replace or layer without API changes.
 - **Concurrency**: vote handling updates two `subjects` rows + inserts a
   `votes` row + bumps the session counter inside a single PostgreSQL
   transaction. The two `subjects` rows are taken with `SELECT … FOR UPDATE`
@@ -172,6 +176,7 @@ e-agora/
   `1`), `EAGORA_RATELIMIT` (`on`|`off`, default `on`),
   `EAGORA_HUMAN_PROVIDER` (`dissent`|`turnstile`|`pow`, default `dissent`),
   `EAGORA_HUMAN_TTL` (human-verified window, default `24h`),
+  `EAGORA_HUMAN_MIN_ATTEMPTS` (never-first-try, default `2`),
   `EAGORA_CORS_ORIGIN` (dev only).
 
 ## Frontend internals
@@ -202,10 +207,13 @@ GET /api/matchup
 ```
 GET  /api/human/challenge
   → human.NewChallenge()   # pick prompt from pool, randomize options
-  → 200 { challengeId(signed: promptId, passCond, nonce, exp), prompt, options }
-POST /api/human/verify { challengeId, answer }
-  → verify signature + exp; answer satisfies passCond?
-        no → 200 { verified:false, ... }  (client requests a fresh challenge)
+  → 200 { challengeId(signed: promptId, passCond, nonce, attempt, exp), prompt, options }
+POST /api/human/verify { challengeId, answer, timing }
+  → verify signature + exp
+  → attempt < EAGORA_HUMAN_MIN_ATTEMPTS (never-first-try)?
+        → 200 { verified:false, challengeId(attempt+1), prompt, options }   # reframed
+  → answer satisfies passCond?  AND  timing not bot-flagged (soft)?
+        no  → 200 { verified:false, challengeId(fresh) }
         yes → UPDATE sessions SET human_verified_until = now + EAGORA_HUMAN_TTL
             → 200 { verified:true, humanVerifiedUntil }
 ```

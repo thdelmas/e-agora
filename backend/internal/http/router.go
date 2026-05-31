@@ -12,11 +12,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/thdelmas/e-agora/backend/internal/config"
+	"github.com/thdelmas/e-agora/backend/internal/store"
 )
 
 // NewRouter builds the top-level HTTP handler with cross-cutting middleware and
 // the /api routes. Endpoints not yet implemented in this milestone return 501.
-func NewRouter(cfg config.Config, logger *slog.Logger) http.Handler {
+func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -24,7 +25,7 @@ func NewRouter(cfg config.Config, logger *slog.Logger) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	h := &handlers{cfg: cfg, logger: logger}
+	h := &handlers{cfg: cfg, store: db, logger: logger}
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", h.healthz)
@@ -46,6 +47,7 @@ func NewRouter(cfg config.Config, logger *slog.Logger) http.Handler {
 // handlers carries shared dependencies for the API handlers.
 type handlers struct {
 	cfg    config.Config
+	store  *store.Store
 	logger *slog.Logger
 }
 

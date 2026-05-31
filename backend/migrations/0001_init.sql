@@ -60,7 +60,7 @@ CREATE TABLE subject_add_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE schema_migrations (
-  version    INTEGER PRIMARY KEY,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- The schema_migrations bookkeeping table is created and owned by the migration
+-- runner (internal/store/migrate.go), which must bootstrap it before it can know
+-- which migrations have been applied. Its shape is documented in
+-- docs/03-data-model.md.

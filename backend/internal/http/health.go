@@ -9,8 +9,15 @@ type healthResponse struct {
 	Seeded   bool   `json:"seeded"`
 }
 
-// healthz reports liveness/readiness. The subject count and seeded flag are
-// stubbed until the store is wired in M1 (docs/07-roadmap.md).
-func (h *handlers) healthz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Subjects: 0, Seeded: false})
+// healthz reports liveness/readiness with the live subject count. "seeded" is
+// true once the pool has any subjects; precise seed-state tracking arrives with
+// ingestion (M2, docs/07-roadmap.md).
+func (h *handlers) healthz(w http.ResponseWriter, r *http.Request) {
+	n, err := h.store.CountSubjects(r.Context())
+	if err != nil {
+		h.logger.Error("healthz: count subjects", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal", "Health check failed.")
+		return
+	}
+	writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Subjects: n, Seeded: n > 0})
 }

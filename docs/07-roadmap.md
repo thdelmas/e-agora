@@ -15,13 +15,17 @@ user-adds.
   *Met: `go build ./...` + `go vet` clean, `go test ./...` green (Elo), `npm run
   build` succeeds, server boots and `GET /api/healthz` → 200.*
 
-### M1 — Backend skeleton + DB
-- [ ] Go module, `cmd/server/main.go`, chi router, `slog`, graceful shutdown.
-- [ ] `pgxpool` from `DATABASE_URL`; fail loudly if unreachable.
-- [ ] Embedded migration runner; `0001_init.sql` (subjects, subject_translations,
+### M1 — Backend skeleton + DB ✅ (done)
+- [x] Go module, `cmd/server/main.go`, chi router, `slog`, graceful shutdown.
+- [x] `pgxpool` from `DATABASE_URL`; fail loudly if unreachable.
+- [x] Embedded migration runner; `0001_init.sql` (subjects, subject_translations,
       votes, sessions, subject_add_log, schema_migrations).
-- [ ] `GET /api/healthz` → subject count + seeded flag.
+- [x] `GET /api/healthz` → subject count + seeded flag.
 - **Done when**: server boots, migrations apply to a fresh DB, `healthz` is 200.
+  *Met: boot applies `0001_init.sql` (6 tables + partial/GIN indexes), reboot
+  applies 0 (idempotent), `healthz` → `200 {subjects:0, seeded:false}`, and an
+  unreachable DB exits non-zero with a clear hint. The runner owns
+  `schema_migrations` (bootstrapped before reading), so it's not in `0001`.*
 
 ### M2 — Ingestion (Wikidata → Wikipedia)
 - [ ] `internal/ingest`: Wikidata SPARQL (UN leaders), `EntityData` (P31 human
@@ -46,10 +50,12 @@ user-adds.
 - [ ] Session middleware (mint/read `eagora_session`).
 - [ ] `internal/ratelimit` per-session token-bucket (R11, on by default) **with
       unit tests** + middleware on `POST /api/votes`.
-- [ ] `internal/human` (R12): signed-challenge mint/verify, `dissent` provider,
-      `humanity_prompts.json` pool (oaths + control items) **with unit tests**;
-      `GET /api/human/challenge`, `POST /api/human/verify`; `human_verified_until`
-      gate on `POST /api/votes`.
+- [ ] `internal/human` (R12): signed-challenge mint/verify, `dissent` provider
+      (**click-only**), `humanity_prompts.json` pool (oaths + control items),
+      **never-first-try** (attempt count in the envelope, `EAGORA_HUMAN_MIN_ATTEMPTS`)
+      and a **soft interaction-timing** signal that never hard-fails (a11y)
+      **with unit tests**; `GET /api/human/challenge`, `POST /api/human/verify`;
+      `human_verified_until` gate on `POST /api/votes`.
 - [ ] `GET /api/matchup` (localized, `displayLang`/`fallbackApplied`),
       `POST /api/votes` (transactional Elo + mint `eagora_lb_access` **only when
       none valid** — fixed window).
@@ -130,7 +136,7 @@ All requirements demonstrably met:
 | `ranking` | unit (pure Elo properties) |
 | `token` | unit (valid / tampered signature / expired / wrong secret); fixed-window mint-if-none; one-add-per-`jti` ledger claim incl. concurrent-claim race |
 | `ratelimit` | unit (burst admitted, refill over time, empty→reject, per-key isolation, idle eviction) |
-| `human` | unit (signed challenge round-trips; tampered/expired/replayed → reject; dissent pass / affirm fail; control-item inversion; per-provider) |
+| `human` | unit (signed challenge round-trips; tampered/expired/replayed → reject; dissent pass / affirm fail; control-item inversion; **never-first-try holds attempt 1**; instant-click flagged but slow/assistive timing **not** blocked; per-provider) |
 | `lang` | unit (Accept-Language parsing; R9 both-or-English decision) |
 | `store` | integration vs disposable Postgres (testcontainers / CI service) |
 | `ingest` | parse tests on captured Wikidata/summary fixtures; human-check & skip rules |
@@ -144,7 +150,7 @@ All requirements demonstrably met:
 | Wikidata/Wikipedia throttle the seed | Proper User-Agent, low sequential rate, retry/backoff; committed `un_leaders.json` snapshot + offline fallback (06). |
 | `EAGORA_TOKEN_SECRET` unset/weak in prod | Required at boot in prod; rotating it invalidates all tokens (kill-switch). |
 | No-auth vote stuffing / spam adds | Layered: humanity check (R12, bots can't vote) + per-session rate limit (R11) + adds gated **one per token** (R8.1) via the `jti` ledger; human+page+QID checks; `active=false` hide switch. Determined attackers out of scope for v1; server gates authoritative. |
-| Humanity check defeated / frustrates humans | Rotating prompt pool + randomized order + sincere control items resist a fixed pass-rule; short verification window; **pluggable** `turnstile`/`pow` providers to layer/replace if abuse appears (Overview Q8). Honest: not bulletproof vs a reasoning adversary. |
+| Humanity check defeated / frustrates humans | Layered signals (dissent + soft interaction-timing + never-first-try); rotating prompt pool + randomized order + sincere control items resist a fixed pass-rule; short window; **pluggable** `turnstile`/`pow` to layer/replace (Overview Q8). Timing **never hard-fails alone** (a11y); honest: not bulletproof vs a reasoning adversary that emulates human timing. |
 | Lazy translation fetch adds matchup latency | English pre-cached at seed; popular languages warm quickly; fetch is one summary call, then cached. |
 | Subject with no English page (R9 fallback gap) | Require `en` for seed leaders; fallback chain for the rare user-add (Overview Q6). |
 | Cold-start rating jitter | Expected; show `comparisons`; consider K-decay later (05). |

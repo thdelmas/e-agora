@@ -90,9 +90,6 @@ Refinements from the product owner, layered onto R1–R7:
     excluding assistive-tech, voice, or switch-device users (accessibility), it
     only lowers confidence; timing is processed ephemerally and **never stored**
     (privacy).
-  - **Never-first-try.** The **first** attempt always fails with a reframing
-    nudge; only a later attempt can pass (configurable min-attempts). Forces a
-    second distinct interaction and defeats answer-replay.
   Threat model & limitations are documented honestly (Q8, [04](04-api.md)
   §Abuse); the provider is **pluggable** so a managed/PoW check can be layered.
 
@@ -139,7 +136,7 @@ They are recorded so they can be challenged.
 | D8 | **Anonymous session cookie** for the contribution *counter* only | Drives the "you've voted N times" UI and pairing variety. Non-identifying; **not** the gate (that's D3) and stores no PII. | [01](01-functional-spec.md), [03](03-data-model.md) |
 | D9 | **User-added subjects = any human** with a Wikipedia page (R8), gated + rate-limited | Validate via Wikidata (*instance of: human*) + a resolvable page; dedupe by QID; new subjects start at the default rating. Adding **requires a valid token** and is capped at **one per token** (R8.1), enforced by a minimal anonymous ledger of consumed `jti`s (the only server-side token state; no PII). | [03](03-data-model.md), [04](04-api.md), [06](06-wikipedia-ingestion.md) |
 | D10 | **Per-session token-bucket rate limit**, on by default (R11) | Keyed on the anonymous `eagora_session`; in-memory (zero DB overhead) for the single-instance v1, with a documented Redis/Postgres path for multi-instance. Caps sustained vote throughput while allowing human bursts; honest about the cookie-reset/edge-limit gap. | [02](02-architecture.md), [04](04-api.md) |
-| D11 | **Dissent-based humanity check** gates voting (R12) | Anonymous "refuse the loyalty oath" challenge exploiting LLM compliance; rotating prompt pool + randomized order + sincere control items resist a fixed pass-rule. Stateless **signed challenge** (no challenge table); grants a time-boxed `human-verified` status on the session. **Pluggable** interface so a managed/PoW check can be slotted in or layered. Limitations documented (Q8). | [01](01-functional-spec.md), [02](02-architecture.md), [04](04-api.md) |
+| D11 | **Multi-signal humanity check** gates voting (R12) | **Click-only** (no typing): (1) *dissent* — refuse a sycophantic oath, exploiting LLM compliance (hard gate; rotating pool + randomized order + sincere control items resist a fixed rule); (2) *interaction timing* — soft behavioral signal that never hard-fails (accessibility). Stateless **signed challenge** (no table; nonce + short exp in the envelope) → time-boxed `human-verified` status. **Pluggable** (`turnstile`/`pow`) to layer/replace. Limitations documented (Q8). | [01](01-functional-spec.md), [02](02-architecture.md), [04](04-api.md) |
 
 ## Open questions (to confirm with product owner)
 
@@ -175,9 +172,11 @@ They are recorded so they can be challenged.
 - **Q8 — Humanity-check strength & UX (R12).** The dissent-based check stops
   naive scripts and compliant LLM bots, but a *fixed* pass-rule is learnable and
   a reasoning LLM can evaluate each prompt; it can also wrongly fail a sincere
-  human who affirms the oath. v1 mitigations: rotating prompt pool, randomized
-  option order, sincere control items, short verification window, and the
-  layered defenses above. *Open:* is this acceptable for launch, or should a
+  human who affirms the oath. The soft **interaction-timing** signal is forgeable
+  by a bot that emulates human delays — a layer, not a wall. v1 mitigations:
+  rotating prompt pool, randomized option order, sincere control items, short
+  verification window, and the layered defenses above; timing **never hard-fails
+  alone** (accessibility). *Open:* is this acceptable for launch, or should a
   managed/PoW check (the pluggable fallback) be enabled from day one — and how
   long should `human-verified` last (default: 24h, aligned with the access
   window)?

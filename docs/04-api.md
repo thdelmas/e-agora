@@ -118,7 +118,7 @@ Issue an anonymous humanity challenge (R12). Mints a session cookie if none.
 **200**
 ```json
 {
-  "challengeId": "<signed: promptId, passCondition, nonce, exp — opaque to client>",
+  "challengeId": "<signed: promptId, passCondition, nonce, attempt, exp — opaque to client>",
   "prompt": "I fully trust that all world leaders serve humanity's interest before their own.",
   "kind": "oath",
   "options": [
@@ -127,32 +127,44 @@ Issue an anonymous humanity challenge (R12). Mints a session cookie if none.
   ]
 }
 ```
-Option order is randomized; the correct (pass) option is **never** revealed.
-`kind` is `oath` (pass = dissent) or occasionally `control` (a sincere statement
-where pass = agree), so an "always dissent" policy fails. Default provider is
-`dissent`; with `turnstile`/`pow` the shape carries that provider's widget data
-instead.
+**Click-only** — the visitor never types. Option order is randomized; the correct
+(pass) option is **never** revealed. `kind` is `oath` (pass = dissent) or
+occasionally `control` (a sincere statement where pass = agree), so an "always
+dissent" policy fails. Default provider is `dissent`; with `turnstile`/`pow` the
+shape carries that provider's widget data instead.
 
 ### `POST /api/human/verify`
 
 Submit an answer to a challenge.
 
-**Request**
+**Request** — `timing` is a small client-collected interaction summary (no
+keystrokes; just decide-latency in ms, an instant-click flag, coarse pointer
+cadence) used as a **soft** behavioral signal.
 ```json
-{ "challengeId": "<from the challenge>", "answer": "dissent" }
+{ "challengeId": "<from the challenge>", "answer": "dissent",
+  "timing": { "decideMs": 2400, "instant": false, "pointerMoves": 7 } }
 ```
 
+**200 (held — never-first-try)** — the **first** attempt always returns this with
+a fresh, reframed challenge, regardless of the answer:
+```json
+{ "verified": false, "reason": "decide_again",
+  "challengeId": "<next attempt>", "prompt": "…", "options": [ … ] }
+```
 **200 (pass)** — sets/updates `sessions.human_verified_until`
 ```json
 { "verified": true, "humanVerifiedUntil": "2026-06-01T12:00:00Z" }
 ```
-**200 (fail)** — client should request a fresh challenge
+**200 (fail)** — wrong choice; client retries with the returned fresh challenge
 ```json
-{ "verified": false }
+{ "verified": false, "reason": "try_again", "challengeId": "<fresh>", "prompt": "…", "options": [ … ] }
 ```
-Validates the signed `challengeId` (signature + `exp` + nonce) and whether
-`answer` satisfies the pass condition. Repeated calls fall under the rate limit
-(R11). The challenge is single-use within its short `exp` window.
+Validates the signed `challengeId` (signature + `exp` + nonce + attempt count),
+enforces **never-first-try** (`attempt < EAGORA_HUMAN_MIN_ATTEMPTS` ⇒ held), then
+checks the pass condition and that `timing` isn't bot-flagged. `timing` **never
+hard-fails on its own** (accessibility) and is **not stored** (privacy). Repeated
+calls fall under the rate limit (R11); each challenge is single-use within its
+short `exp`.
 
 ### `POST /api/votes`
 

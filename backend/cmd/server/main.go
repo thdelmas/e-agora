@@ -1,8 +1,9 @@
-// Command server is the e-agora backend entrypoint: it loads config, wires the
-// chi router, and serves HTTP with graceful shutdown.
+// Command server is the e-agora backend entrypoint: it loads config, connects to
+// PostgreSQL, applies migrations, wires the chi router, and serves HTTP with
+// graceful shutdown.
 //
-// M0 scaffold: the router is up and /api/healthz responds. PostgreSQL wiring,
-// ingestion, voting, and the access-token gate land in later milestones
+// As of M1 the database is wired and /api/healthz reports the live subject
+// count. Ingestion, voting, and the access-token gate land in later milestones
 // (see docs/07-roadmap.md).
 package main
 
@@ -18,6 +19,8 @@ import (
 
 	"github.com/thdelmas/e-agora/backend/internal/config"
 	eagorahttp "github.com/thdelmas/e-agora/backend/internal/http"
+	"github.com/thdelmas/e-agora/backend/internal/store"
+	"github.com/thdelmas/e-agora/backend/migrations"
 )
 
 func main() {
@@ -26,9 +29,30 @@ func main() {
 
 	cfg := config.Load()
 
+	// Connect to PostgreSQL and apply migrations before serving. A short,
+	// bounded startup context keeps a dead database from hanging boot.
+	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelStartup()
+
+	db, err := store.Open(startupCtx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("cannot connect to PostgreSQL",
+			"err", err,
+			"hint", "is the database running? try: docker compose up -d db")
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	applied, err := db.Migrate(startupCtx, migrations.FS)
+	if err != nil {
+		logger.Error("migrations failed", "err", err)
+		os.Exit(1)
+	}
+	logger.Info("migrations up to date", "applied_this_boot", applied)
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           eagorahttp.NewRouter(cfg, logger),
+		Handler:           eagorahttp.NewRouter(cfg, db, logger),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
