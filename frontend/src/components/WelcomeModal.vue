@@ -11,7 +11,7 @@ defineEmits(['enter'])
       <h2>Welcome to the agora</h2>
       <p class="muted">
         Two public figures enter — you pick who you'd rather have as a leader. Thousands of these
-        one-on-one duels pool into a single, ever-shifting ranking — shaped by people,
+        one-on-one votes pool into a single, ever-shifting ranking — shaped by people,
         not editors.
       </p>
 

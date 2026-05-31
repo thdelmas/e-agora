@@ -13,7 +13,7 @@ const winPct = computed(() => pct(props.entry.wins, props.entry.comparisons))
 const medal = computed(() => ({ 1: '🥇', 2: '🥈', 3: '🥉' }[props.entry.rank] || null))
 
 // Glicko-2 rating deviation: how unsure we still are of this rating. A high RD
-// means few/erratic duels, so the rank is provisional — flag it rather than
+// means few/erratic votes, so the rank is provisional — flag it rather than
 // pretend the number is settled. ~110 is the usual "established" cutoff.
 const rd = computed(() => Math.round(props.entry.ratingDeviation || 0))
 const provisional = computed(() => rd.value > 110)
@@ -38,11 +38,11 @@ const provisional = computed(() => rd.value > 110)
       <span class="winbar-track" :title="`${winPct}% win rate`">
         <span class="winbar-fill" :style="{ width: winPct + '%' }"></span>
       </span>
-      <span class="winbar-label">{{ winPct }}% won · {{ entry.comparisons }} duels</span>
+      <span class="winbar-label">{{ winPct }}% won · {{ entry.comparisons }} votes</span>
     </span>
 
     <span class="rating" :class="{ provisional }"
-          :title="`Glicko-2 rating ${Math.round(entry.rating)} ± ${rd}${provisional ? ' · provisional (needs more duels)' : ''}`">
+          :title="`Glicko-2 rating ${Math.round(entry.rating)} ± ${rd}${provisional ? ' · provisional (needs more votes)' : ''}`">
       <span class="rating-val">{{ Math.round(entry.rating) }}</span>
       <span class="rating-unit">±{{ rd }}{{ provisional ? ' ?' : '' }}</span>
     </span>

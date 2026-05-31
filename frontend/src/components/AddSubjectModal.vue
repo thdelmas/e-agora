@@ -21,6 +21,7 @@ const adding = ref(false)
 const message = ref('')
 const messageType = ref('') // 'error' | 'success'
 const done = ref(false)
+const added = ref(null) // the subject we just inserted, shown as a confirmation card
 
 const urlRe = /^https?:\/\/[a-z-]+(\.m)?\.wikipedia\.org\/wiki\/.+/i
 const isUrl = () => urlRe.test(query.value.trim())
@@ -54,9 +55,8 @@ async function add(payload, label) {
   message.value = ''
   try {
     const r = await api.addSubject(payload)
+    added.value = r.subject || { name: label }
     done.value = true
-    messageType.value = 'success'
-    message.value = `Added ${r.subject?.name || label || 'them'} — they’ll start appearing in matchups.`
     await refreshMe()
   } catch (e) {
     messageType.value = 'error'
@@ -93,7 +93,26 @@ function addError(e) {
       <h2>Add someone</h2>
 
       <template v-if="done">
-        <p class="nudge success">{{ message }}</p>
+        <p class="nudge success">They’re in the agora.</p>
+        <div class="added-card">
+          <img v-if="added?.imageUrl" :src="added.imageUrl" :alt="added.name" class="added-portrait" />
+          <span v-else class="added-portrait placeholder" aria-hidden="true"></span>
+          <span class="added-text">
+            <strong class="added-name">{{ added?.name }}</strong>
+            <span v-if="added?.description" class="muted detail">{{ added.description }}</span>
+            <a
+              v-if="added?.wikipediaUrl"
+              :href="added.wikipediaUrl"
+              target="_blank"
+              rel="noopener"
+              class="wiki-btn"
+            >Read on Wikipedia ↗</a>
+          </span>
+        </div>
+        <p class="muted hint">
+          {{ added?.name?.split(' ')[0] || 'They' }} will start appearing in matchups right away. New
+          additions begin near the bottom of the rankings and climb as people vote on them.
+        </p>
         <button class="prefer" @click="$emit('close')">Done</button>
       </template>
 
