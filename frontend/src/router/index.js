@@ -4,6 +4,9 @@ import { api } from '../api/client'
 const routes = [
   { path: '/', name: 'matchup', component: () => import('../views/MatchupView.vue') },
   { path: '/leaderboard', name: 'leaderboard', component: () => import('../views/LeaderboardView.vue') },
+  // Public, ungated transparency dashboard — no access token required (the
+  // route guard below only gates the leaderboard).
+  { path: '/stats', name: 'stats', component: () => import('../views/StatsView.vue') },
 ]
 
 const router = createRouter({

@@ -35,3 +35,11 @@ services:
       # if you'd rather seed once locally and set this to "off".
       - key: EAGORA_SEED
         value: auto
+      # Canonical absolute base URL (no trailing slash) for SEO: the <link
+      # canonical>, Open Graph/Twitter tags, robots.txt and sitemap.xml all
+      # resolve against it. Set it to your final public origin so search engines
+      # and link previews use ONE stable host. If left blank the backend derives
+      # it per-request (fine on the first *.onrender.com boot; set it once you
+      # attach a custom domain). Example: https://e-agora.org
+      - key: EAGORA_PUBLIC_URL
+        sync: false

@@ -1,0 +1,14 @@
+{
+  "name": "e-agora",
+  "short_name": "e-agora",
+  "description": "A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f5a40",
+  "theme_color": "#1f5a40",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

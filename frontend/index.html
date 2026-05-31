@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1f5a40" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
     <title>e-agora — the people decide</title>
     <meta name="description" content="A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora." />
 
@@ -13,6 +19,10 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Canonical + Open Graph + Twitter Card tags are injected per route by the
+         backend just before </head> (see backend/internal/http/spa.go). The Vite
+         dev server serves this file as-is, so they are absent in local dev. -->
   </head>
   <body>
     <div id="app"></div>

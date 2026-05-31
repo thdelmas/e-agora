@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import SiteFooter from './components/SiteFooter.vue'
 import AddSubjectModal from './components/AddSubjectModal.vue'
 import HumanityCheckModal from './components/HumanityCheckModal.vue'
@@ -8,7 +8,13 @@ import WelcomeModal from './components/WelcomeModal.vue'
 import { me, refreshMe, welcomeSeen, acknowledgeWelcome } from './store'
 
 const router = useRouter()
+const route = useRoute()
 const showAdd = ref(false)
+
+// The public stats page is open to everyone — it must render without the
+// humanity check or welcome step (those gate the voting arena, not a page of
+// anonymous aggregate numbers). Matches the ungated /api/stats endpoint.
+const isPublicPage = computed(() => route.name === 'stats')
 
 onMounted(refreshMe)
 
@@ -47,6 +53,9 @@ function openLeaderboard() {
         <span v-if="me.contributions > 0" class="contrib" title="Votes you've contributed">
           {{ me.contributions }} {{ me.contributions === 1 ? 'vote' : 'votes' }}
         </span>
+        <RouterLink to="/stats" class="nav-stats" title="Public statistics — anonymous & open to all">
+          Stats
+        </RouterLink>
         <button class="nav-add" :disabled="!me.canAdd" :title="addTitle" @click="showAdd = true">
           + Add someone
         </button>
@@ -57,13 +66,13 @@ function openLeaderboard() {
     </header>
 
     <main class="content">
-      <RouterView v-if="me.loaded && !needsHuman && !needsWelcome" />
+      <RouterView v-if="isPublicPage || (me.loaded && !needsHuman && !needsWelcome)" />
     </main>
 
     <SiteFooter />
 
     <AddSubjectModal v-if="showAdd" @close="showAdd = false" />
-    <HumanityCheckModal v-if="needsHuman" gate @verified="onHumanVerified" />
-    <WelcomeModal v-else-if="needsWelcome" @enter="acknowledgeWelcome" />
+    <HumanityCheckModal v-if="needsHuman && !isPublicPage" gate @verified="onHumanVerified" />
+    <WelcomeModal v-else-if="needsWelcome && !isPublicPage" @enter="acknowledgeWelcome" />
   </div>
 </template>

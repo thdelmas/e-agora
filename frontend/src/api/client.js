@@ -32,4 +32,5 @@ export const api = {
     request('/human/verify', { method: 'POST', body: { challengeId, answer, timing } }),
   searchSubjects: (q, lang) => request(`/subjects/search?q=${encodeURIComponent(q)}${lang ? `&lang=${lang}` : ''}`),
   addSubject: (payload) => request('/subjects', { method: 'POST', body: payload }),
+  stats: (days) => request(`/stats${days ? `?days=${days}` : ''}`),
 }
