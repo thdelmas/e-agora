@@ -183,7 +183,6 @@ func publicOf(subj model.Subject, tr model.Translation) model.SubjectPublic {
 		WikidataID:   subj.WikidataID,
 		Name:         tr.Name,
 		Description:  tr.Description,
-		Country:      subj.Country,
 		ImageURL:     tr.ImageURL,
 		WikipediaURL: tr.WikipediaURL,
 	}

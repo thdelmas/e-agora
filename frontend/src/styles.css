@@ -128,7 +128,7 @@ a { color: var(--laurel); }
 button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border: 1px solid var(--border); padding: 0.55rem 1.1rem; }
 
 .prefer {
-  display: block; width: 100%; margin-top: 0.85rem;
+  display: block; width: 100%; margin-top: auto;
   color: #fff; border: none; font-weight: 700; font-size: 1rem;
   padding: 0.7rem 1rem; border-radius: 12px; position: relative; overflow: hidden;
   background: linear-gradient(135deg, var(--laurel), var(--laurel-deep));
@@ -165,15 +165,18 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 /* ------------------------------------------------------------------ Matchup */
 .matchup { text-align: center; }
 .prompt {
-  font-size: clamp(2rem, 6vw, 3.1rem); font-weight: 900; margin: 0.6rem 0 0.3rem;
+  font-size: clamp(1.75rem, 6vw, 3.1rem); font-weight: 900; margin: 0.5rem 0 0.3rem;
   letter-spacing: -0.025em; line-height: 1.05;
 }
 .prompt em {
   font-style: italic;
+  /* Italic glyphs lean past the inline box; pad the right so the clipped
+     gradient covers the trailing "?" instead of fading it out. */
+  padding-right: 0.12em;
   background: linear-gradient(120deg, var(--teal-deep), var(--amber-deep));
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
-.subprompt { color: var(--muted); margin: 0 0 1.6rem; font-family: var(--font-display); font-style: italic; }
+.subprompt { color: var(--muted); margin: 0 0 1.2rem; font-family: var(--font-display); font-style: italic; }
 
 .locked-hint {
   background: linear-gradient(135deg, #fff6e0, #ffedcb);
@@ -190,13 +193,22 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 }
 .privacy-note strong { color: var(--laurel-deep); }
 
-.cards { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: stretch; justify-content: center; }
+/* Mobile-first: the two candidates sit side by side in a tight two-column
+   grid so a voter can compare them at a glance without scrolling. The VS
+   medallion floats over the seam (absolutely positioned, see `.vs`).
+   `--portrait-h` is shared with `.vs` so the medallion stays centred on the
+   portraits at any size. The roomy desktop layout takes over at ≥720px. */
+.cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;
+  align-items: stretch; justify-content: center; position: relative;
+  --portrait-h: 150px;
+}
 .cards.busy { opacity: 0.55; pointer-events: none; filter: saturate(0.7); transition: opacity 0.2s, filter 0.2s; }
 
 .card {
-  flex: 1 1 300px; max-width: 380px; position: relative;
+  position: relative; display: flex; flex-direction: column;
   background: linear-gradient(180deg, var(--card), var(--card-2));
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem; text-align: center;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.8rem; text-align: center;
   box-shadow: var(--shadow-md);
   transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -225,7 +237,7 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .side-b .side-tag { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); }
 
 .portrait {
-  width: 100%; height: 240px; object-fit: cover; border-radius: 12px;
+  width: 100%; height: var(--portrait-h, 240px); object-fit: cover; border-radius: 12px;
   background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line);
 }
 .portrait.placeholder {
@@ -234,21 +246,27 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 }
 .portrait.placeholder::after { content: "🏛"; font-size: 2.4rem; opacity: 0.5; }
 
-.name { font-size: 1.35rem; margin: 0.7rem 0 0.15rem; font-weight: 800; }
-.desc { color: var(--ink-soft); margin: 0.15rem 0; font-size: 0.95rem; }
-.country { font-size: 0.82rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.name { font-size: 1.02rem; margin: 0.5rem 0 0.1rem; font-weight: 800; line-height: 1.2; }
+.desc { color: var(--ink-soft); margin: 0.1rem 0; font-size: 0.82rem; line-height: 1.4; }
 .wiki {
-  display: inline-block; margin: 0.5rem 0 0.2rem; color: var(--teal-deep);
-  font-size: 0.85rem; font-weight: 600; text-decoration: none; opacity: 0.85;
+  display: inline-block; margin: 0.4rem 0 0.1rem; color: var(--teal-deep);
+  font-size: 0.78rem; font-weight: 600; text-decoration: none; opacity: 0.85;
 }
 .wiki:hover { opacity: 1; text-decoration: underline; }
+/* Compact prefer button so "Prefer <name>" fits a half-width card; restored
+   to the full size in the ≥720px enhancement. margin-top:auto (set on .prefer)
+   pins it to the card foot so both buttons line up despite uneven bios. */
+.card .prefer { padding: 0.58rem 0.5rem; font-size: 0.92rem; }
 
-/* The glowing vote medallion */
+/* The glowing vote medallion. On mobile it floats over the gap between the
+   two cards, centred on the portraits; at ≥720px it returns to the flow
+   between the side-by-side cards. */
 .vs {
-  align-self: center; flex: 0 0 auto; position: relative;
-  width: 3.6rem; height: 3.6rem; display: grid; place-items: center;
+  position: absolute; left: 50%; top: calc(0.8rem + var(--portrait-h) / 2);
+  transform: translate(-50%, -50%);
+  width: 2.7rem; height: 2.7rem; display: grid; place-items: center;
   font-family: var(--font-display); font-weight: 900; font-style: italic;
-  font-size: 1.2rem; color: #fff; border-radius: 50%;
+  font-size: 0.95rem; color: #fff; border-radius: 50%;
   background: radial-gradient(circle at 32% 28%, #36465e, var(--ink));
   box-shadow: 0 6px 18px rgba(28, 36, 51, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
   z-index: 3;
@@ -262,13 +280,32 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
   content: ""; position: absolute; inset: -5px; border-radius: 50%;
   box-shadow: 0 0 0 0 rgba(216, 162, 58, 0.5); animation: pulse-ring 2.4s ease-out infinite;
 }
-@media (max-width: 720px) { .vs { width: 3rem; height: 3rem; } }
-
-.kbd { font-size: 0.82rem; margin-top: 0.6rem; }
+/* Arrow-key hint is desktop-only — meaningless on touch. */
+.kbd { display: none; font-size: 0.82rem; margin-top: 0.6rem; }
 .kbd kbd {
   font-family: var(--font-body); font-size: 0.78rem; font-weight: 600;
   background: var(--card); border: 1px solid var(--border); border-bottom-width: 2px;
   border-radius: 6px; padding: 0.05rem 0.4rem; color: var(--ink-soft);
+}
+
+/* ≥720px — roomy "arena" layout: the cards sit side by side with the
+   medallion back in the flow between them (the original desktop look).
+   Everything above is the mobile-first baseline. */
+@media (min-width: 720px) {
+  .cards { display: flex; flex-wrap: wrap; gap: 1.1rem; --portrait-h: 240px; }
+  .card { flex: 1 1 300px; max-width: 380px; padding: 1.1rem; }
+  .card .prefer { padding: 0.7rem 1rem; font-size: 1rem; }
+  .name { font-size: 1.35rem; margin: 0.7rem 0 0.15rem; }
+  .desc { font-size: 0.95rem; }
+  .wiki { font-size: 0.85rem; margin: 0.5rem 0 0.2rem; }
+  .vs {
+    /* relative (not static) so the ::before/::after rings stay anchored to
+       the medallion — under static they'd resolve against .cards and blow up. */
+    position: relative; top: auto; left: auto; transform: none;
+    align-self: center; flex: 0 0 auto;
+    width: 3.6rem; height: 3.6rem; font-size: 1.2rem;
+  }
+  .kbd { display: block; }
 }
 
 .toast {
@@ -303,7 +340,6 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .rank { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; color: var(--muted); text-align: center; }
 .thumb { width: 46px; height: 46px; object-fit: cover; border-radius: 10px; background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line); }
 .row .name { font-size: 1rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row .country { display: block; font-size: 0.78rem; }
 
 /* Win/loss split bar */
 .winbar { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
@@ -477,7 +513,6 @@ button { cursor: pointer; font: inherit; border-radius: var(--radius-sm); border
 .stat-card.voters::before { background: var(--laurel); }
 .stat-card.pool::before { background: var(--gold); }
 .stat-card.added::before { background: var(--gold-deep); }
-.stat-card.countries::before { background: var(--teal-deep); }
 .stat-num {
   font-family: var(--font-display); font-size: 1.75rem; font-weight: 900; line-height: 1;
   color: var(--ink); font-variant-numeric: tabular-nums;

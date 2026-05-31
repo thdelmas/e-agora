@@ -18,7 +18,6 @@ type statsTotals struct {
 	Visitors        int `json:"visitors"`
 	Subjects        int `json:"subjects"`
 	UserContributed int `json:"userContributed"`
-	Countries       int `json:"countries"`
 }
 
 type dailyStat struct {
@@ -68,7 +67,6 @@ func (h *handlers) stats(w http.ResponseWriter, r *http.Request) {
 			Visitors:        st.Totals.Visitors,
 			Subjects:        st.Totals.Subjects,
 			UserContributed: st.Totals.UserContributed,
-			Countries:       st.Totals.Countries,
 		},
 		Daily: daily,
 	})

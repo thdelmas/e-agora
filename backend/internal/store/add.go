@@ -19,10 +19,10 @@ var (
 
 // NewSubject carries the fields needed to create a user-added subject (R8).
 type NewSubject struct {
-	QID, Name, Country string
-	Langs              []string
-	EnName, EnDesc     string
-	EnImage, EnURL     string
+	QID, Name      string
+	Langs          []string
+	EnName, EnDesc string
+	EnImage, EnURL string
 }
 
 // SubjectIDByQID returns the id of a subject with the given QID, and whether it
@@ -62,9 +62,9 @@ func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, country, source, available_langs)
-		VALUES ($1, $2, NULLIF($3, ''), 'user', $4) RETURNING id`,
-		ns.QID, ns.Name, ns.Country, ns.Langs).Scan(&id)
+		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs)
+		VALUES ($1, $2, 'user', $3) RETURNING id`,
+		ns.QID, ns.Name, ns.Langs).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return 0, ErrAlreadyExists

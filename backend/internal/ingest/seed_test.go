@@ -167,7 +167,7 @@ type fakeWriter struct {
 type translation struct{ lang, name, desc, img, url string }
 
 func (f *fakeWriter) CountSubjects(context.Context) (int, error) { return f.count, nil }
-func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _, _ string, _ []string) (int64, error) {
+func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _ string, _ []string) (int64, error) {
 	f.subjects++
 	return int64(f.subjects), nil
 }
@@ -275,7 +275,7 @@ func TestSeedOne(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			w := &fakeWriter{}
 			s := &Seeder{Store: w, Logger: discardLogger(), Fetcher: c.fetcher}
-			err := s.seedOne(context.Background(), seedItem{QID: "Q1", Country: "Country"})
+			err := s.seedOne(context.Background(), seedItem{QID: "Q1"})
 			if c.wantErr == errSkip && !errors.Is(err, errSkip) {
 				t.Errorf("err = %v, want errSkip", err)
 			}

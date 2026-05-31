@@ -10,7 +10,6 @@ type Subject struct {
 	ID             int64
 	WikidataID     string
 	CanonicalName  string
-	Country        string
 	Source         string // "seed" | "user"
 	AvailableLangs []string
 	Rating         float64 // Glicko-2 rating (~1500 scale)
@@ -78,7 +77,6 @@ type StatsTotals struct {
 	Visitors        int // anonymous sessions ever created (≈ unique browsers/devices)
 	Subjects        int // active people in the pool
 	UserContributed int // subjects added by visitors (source='user')
-	Countries       int // distinct countries represented among active subjects
 }
 
 // DailyStat is one UTC-day bucket of the activity time series. Days with no
@@ -99,7 +97,6 @@ type SubjectPublic struct {
 	WikidataID   string `json:"wikidataId"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
-	Country      string `json:"country,omitempty"`
 	ImageURL     string `json:"imageUrl,omitempty"`
 	WikipediaURL string `json:"wikipediaUrl"`
 }

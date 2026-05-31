@@ -156,7 +156,7 @@ subjects converge fast and the board ranks conservatively until a rating is prov
 Open, anonymous transparency page so anyone (no vote required) can see the agora's
 activity, while honoring the anonymity promise (R3 / no PII).
 - [x] `store.Stats(days)` — all-time totals (votes, distinct voters, visitors,
-      pool size, user-added, countries) + a gap-filled daily series
+      pool size, user-added) + a gap-filled daily series
       (votes/voters/visitors/added), bucketed by UTC day via `generate_series`.
       Derived on read; **no new tables** (docs/03-data-model.md §Derived data).
 - [x] `GET /api/stats` — **public/ungated**, mints **no** session; `days` window

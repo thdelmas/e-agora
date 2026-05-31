@@ -31,7 +31,6 @@ const provisional = computed(() => rd.value > 110)
 
     <span>
       <span class="name">{{ entry.subject.name }}</span>
-      <span v-if="entry.subject.country" class="country">{{ entry.subject.country }}</span>
     </span>
 
     <span class="winbar">

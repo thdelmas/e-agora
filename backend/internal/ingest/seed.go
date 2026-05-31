@@ -16,7 +16,7 @@ import (
 // at the consumer, so the seeder is testable with a fake).
 type SubjectWriter interface {
 	CountSubjects(ctx context.Context) (int, error)
-	UpsertSubject(ctx context.Context, qid, canonicalName, country, source string, langs []string) (int64, error)
+	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string) (int64, error)
 	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, imageURL, wikipediaURL string) error
 }
 
@@ -32,9 +32,8 @@ var errSkip = errors.New("skip")
 
 // seedItem is one entry of un_leaders.json / seed_extra.json.
 type seedItem struct {
-	QID     string `json:"qid"`
-	Country string `json:"country"`
-	Name    string `json:"name"`
+	QID  string `json:"qid"`
+	Name string `json:"name"`
 }
 
 // Seeder enriches snapshot QIDs from Wikidata/Wikipedia and upserts them.
@@ -137,7 +136,7 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		langs = []string{"en"}
 	}
 
-	id, err := s.Store.UpsertSubject(ctx, it.QID, name, it.Country, "seed", langs)
+	id, err := s.Store.UpsertSubject(ctx, it.QID, name, "seed", langs)
 	if err != nil {
 		return fmt.Errorf("upsert subject: %w", err)
 	}

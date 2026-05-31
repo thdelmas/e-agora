@@ -58,7 +58,6 @@ Rendered in the request's **display language** (matchup) or per-entry language
   "wikidataId": "Q567",
   "name": "Angela Merkel",
   "description": "Chancellor of Germany 2005–2021",
-  "country": "Germany",
   "imageUrl": "https://upload.wikimedia.org/.../Angela_Merkel.jpg",
   "wikipediaUrl": "https://de.wikipedia.org/wiki/Angela_Merkel"
 }
@@ -320,8 +319,7 @@ stored or returned — see §Abuse & integrity).
     "voters": 1932,
     "visitors": 2517,
     "subjects": 391,
-    "userContributed": 28,
-    "countries": 142
+    "userContributed": 28
   },
   "daily": [
     { "date": "2026-05-02", "votes": 412, "voters": 73, "visitors": 88, "added": 1 }
@@ -330,9 +328,8 @@ stored or returned — see §Abuse & integrity).
 ```
 - `totals` are **all-time**: `votes` (preferences recorded), `voters` (distinct
   anonymous sessions that ever voted), `visitors` (anonymous sessions ever
-  created ≈ unique browsers), `subjects` (active people in the pool),
-  `userContributed` (subjects with `source='user'`), `countries` (distinct
-  non-empty `country` labels among active subjects).
+  created ≈ unique browsers), `subjects` (active people in the pool), and
+  `userContributed` (subjects with `source='user'`).
 - `daily` is a **gap-filled** series of exactly `days` UTC-day buckets (zeros
   where there was no activity), each with that day's `votes`, distinct `voters`,
   new `visitors` (sessions first seen that day), and people `added`.

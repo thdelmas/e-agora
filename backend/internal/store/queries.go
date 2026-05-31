@@ -38,7 +38,7 @@ var (
 // Translations are fetched separately per the resolved display language.
 func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, wikidata_id, canonical_name, COALESCE(country, ''), available_langs
+		SELECT id, wikidata_id, canonical_name, available_langs
 		FROM subjects WHERE active
 		ORDER BY power(random(), comparisons + 1) DESC LIMIT 2`)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
 	var out []model.Subject
 	for rows.Next() {
 		var s model.Subject
-		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.Country, &s.AvailableLangs); err != nil {
+		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.AvailableLangs); err != nil {
 			return nil, fmt.Errorf("scan subject: %w", err)
 		}
 		out = append(out, s)
