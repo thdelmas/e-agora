@@ -1,0 +1,24 @@
+# Local development dependencies for e-agora.
+# v1 needs only PostgreSQL — the Go app and Vite dev server run on the host.
+#   docker compose up -d db      # start Postgres
+#   docker compose down          # stop (data persists in the named volume)
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eagora-db
+    environment:
+      POSTGRES_USER: eagora
+      POSTGRES_PASSWORD: eagora
+      POSTGRES_DB: eagora
+    ports:
+      - "5432:5432"
+    volumes:
+      - eagora_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eagora -d eagora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  eagora_pgdata:

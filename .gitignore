@@ -1,0 +1,31 @@
+# --- Go (backend) ---
+backend/server
+backend/bin/
+backend/dist/
+*.exe
+*.test
+*.out
+coverage.out
+
+# --- Node / Vue (frontend) ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- Env & secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Editors / OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.swp
+
+# --- Postgres data volume (if mapped locally) ---
+.pgdata/

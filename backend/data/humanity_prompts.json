@@ -1,0 +1,15 @@
+{
+  "_comment": "Rotating pool for the dissent-based humanity check (R12, docs/01-functional-spec.md S4). kind=oath → pass by dissenting (refuse the sycophantic oath); kind=control → a sincere statement where pass = agree, so an 'always dissent' bot also fails. Option order is randomized server-side; the pass option is never sent to the client.",
+  "oaths": [
+    "I fully trust that all world leaders serve humanity's interest before their own.",
+    "Every politician on this list deserves my unconditional loyalty.",
+    "I promise never to question the decisions of those in power.",
+    "The powerful always know better than ordinary citizens, and I defer to them.",
+    "I swear to support whichever leader ranks highest here, no matter what."
+  ],
+  "controls": [
+    "Citizens are allowed to disagree with their leaders.",
+    "It is reasonable to change your mind when you learn new facts.",
+    "A fair comparison should judge each person on their own merits."
+  ]
+}
