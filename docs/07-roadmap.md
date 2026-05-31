@@ -39,24 +39,25 @@ user-adds.
   available_langs` and a non-empty English `wikipedia_url`; non-humans/missing
   pages are skipped+logged; re-`force` preserves ratings.
 
-### M3 — Matchup + i18n + voting + Elo + token + humanity check
-- [ ] `internal/ranking` Elo (pure) **with unit tests** (±16, conservation,
-      monotonicity, upset magnitude).
-- [ ] `internal/matchup` pair selection (uniform → coverage-bias).
-- [ ] `internal/lang` (`Accept-Language`/`?lang=` → Wikipedia code) + R9
-      resolution; **lazy translation fetch+cache** on miss.
-- [ ] `internal/token` mint/verify stateless HMAC token (`EAGORA_TOKEN_SECRET`,
+### M3 — Matchup + i18n + voting + Elo + token + humanity check ✅ (done)
+- [x] `internal/ranking` Elo (pure) **with unit tests** (±16, conservation,
+      monotonicity, upset magnitude). *(Superseded by M7 — the engine is now
+      Glicko-2; see below.)*
+- [x] Matchup pair selection — uniform random in `store.RandomPair`
+      (`ORDER BY random()`). *(Superseded by M7 — now coverage-biased; see below.)*
+- [x] `internal/lang` (`Accept-Language`/`?lang=` → Wikipedia code) + R9
+      resolution; **lazy translation fetch+cache** on miss (`SitelinkTitle`).
+- [x] `internal/token` mint/verify stateless HMAC token (`EAGORA_TOKEN_SECRET`,
       fixed 24h, random `jti`) **with unit tests** (valid, tampered, expired).
-- [ ] Session middleware (mint/read `eagora_session`).
-- [ ] `internal/ratelimit` per-session token-bucket (R11, on by default) **with
+- [x] Session middleware (mint/read `eagora_session`).
+- [x] `internal/ratelimit` per-session token-bucket (R11, on by default) **with
       unit tests** + middleware on `POST /api/votes`.
-- [ ] `internal/human` (R12): signed-challenge mint/verify, `dissent` provider
+- [x] `internal/human` (R12): signed-challenge mint/verify, `dissent` provider
       (**click-only**), `humanity_prompts.json` pool (oaths + control items),
-      **never-first-try** (attempt count in the envelope, `EAGORA_HUMAN_MIN_ATTEMPTS`)
       and a **soft interaction-timing** signal that never hard-fails (a11y)
       **with unit tests**; `GET /api/human/challenge`, `POST /api/human/verify`;
       `human_verified_until` gate on `POST /api/votes`.
-- [ ] `GET /api/matchup` (localized, `displayLang`/`fallbackApplied`),
+- [x] `GET /api/matchup` (localized, `displayLang`/`fallbackApplied`),
       `POST /api/votes` (transactional Elo + mint `eagora_lb_access` **only when
       none valid** — fixed window).
 - **Done when**: voting moves ratings correctly under concurrency; matchup
@@ -65,47 +66,91 @@ user-adds.
   a first vote returns `accessTokenExpiresAt` and sets the token cookie; extra
   votes within the window don't slide its expiry; exceeding the per-session limit
   returns `429 rate_limited` + `Retry-After`.
+  *Met: verified live against the seeded pool — matchup → 403 (no human) →
+  dissent challenge → verify → vote → `1516/1484` Elo (±16), token + session
+  cookies set, audit row written. `go test ./...` green across `ranking`,
+  `token`, `ratelimit`, `lang`, `human`, `ingest`.*
 
-### M4 — Token gate + leaderboard + add-a-subject
-- [ ] `GET /api/me` (contributions + `hasAccess`/`accessExpiresAt`).
-- [ ] `GET /api/leaderboard` → `403 access_required`/`access_expired` without a
-      valid token, else ranked, localized entries.
-- [ ] `internal/subjects` + `POST /api/subjects` — **token-gated, one add per
-      token** (atomic `jti` claim in `subject_add_log`); resolve→QID,
-      human-check, dedupe, ingest — and `GET /api/subjects/search` (autocomplete).
-- [ ] `/api/me` exposes `canAdd` (valid token + unused allowance).
+### M4 — Token gate + leaderboard + add-a-subject ✅ (done)
+- [x] `GET /api/me` (contributions + `hasAccess`/`accessExpiresAt` + `canAdd` +
+      `humanVerified`/`humanVerifiedUntil`).
+- [x] `GET /api/leaderboard` → `403 access_required`/`access_expired` without a
+      valid token, else ranked, localized entries (+ `totalVotes`).
+- [x] `internal/subjects` + `POST /api/subjects` — **token-gated, one add per
+      token** (atomic `jti` claim in `subject_add_log`); resolve URL→QID
+      (pageprops), human-check, dedupe, ingest — and `GET /api/subjects/search`
+      (Wikipedia REST autocomplete).
+- [x] `/api/me` exposes `canAdd` (valid token + unused allowance).
 - **Done when**: no/expired token → 403; after one vote → 200 ordered entries;
   adding a human URL (with a token) inserts it and it appears in later matchups;
   a **second add on the same token → 429 `add_limit_reached`**, and a rejected
   add doesn't consume the allowance; non-person / duplicate / non-page inputs
   return the right 4xx codes.
+  *Met: verified live — `leaderboard` 403 (no token) → vote → 200 with the +16
+  winner ranked #1; `POST /api/subjects` of a Wikipedia URL resolved → inserted
+  (201), a 2nd add on the same token → 429, `/api/me canAdd` flipped true→false;
+  search returns suggestions. `subjects` + `ingest` unit tests green.*
 
-### M5 — Frontend
-- [ ] Vue 3 + Vite + Router (`/`, `/leaderboard`, add modal), `api/client.js`
-      (`credentials: 'include'`), Vite dev proxy.
-- [ ] `MatchupView` + `PoliticianCard` (localized content, Wikipedia link, vote +
-      skip, keyboard ←/→/S) + `LanguageNote` (R9 fallback).
-- [ ] `AddSubjectModal` (paste URL / search-autocomplete / confirm) with inline
-      eligibility errors.
-- [ ] `HumanityCheckModal` (S4): shown on `403 human_check_required`; refuse the
-      oath → verify → auto-retry the pending vote.
-- [ ] `AccessBanner` countdown + leaderboard lock/unlock from `/api/me`; route
+### M5 — Frontend ✅ (code-complete; in-browser walkthrough pending)
+- [x] Vue 3 + Vite + Router (`/`, `/leaderboard`, add modal via App), `api/client.js`
+      (`credentials: 'include'`, `timing` on verify), Vite dev proxy + shared
+      reactive `store.js` (`me`, `refreshMe`, `applyVote`).
+- [x] `MatchupView` + `PoliticianCard` (localized content, Wikipedia link, vote +
+      skip, keyboard ←/→/S, toast) + `LanguageNote` (R9 fallback).
+- [x] `AddSubjectModal` (paste URL / search-autocomplete / confirm) with inline
+      eligibility errors (not_a_person / already_exists / add_limit_reached / …).
+- [x] `HumanityCheckModal` (S4): shown on `403 human_check_required`; refuse the
+      oath → verify (with interaction timing) → auto-retry the pending vote.
+- [x] `AccessBanner` live 24h countdown + lock/unlock from the store; route
       guard mirroring the token gate.
-- [ ] `LeaderboardView` + `LeaderboardRow`; total-votes stat; "keep voting".
-- [ ] Persistent neutrality disclaimer (`SiteFooter`).
+- [x] `LeaderboardView` + `LeaderboardRow`; total-votes stat; "keep voting"; nav
+      with contribution count + gated "Add someone" / "Rankings 🔒".
+- [x] Persistent neutrality disclaimer (`SiteFooter`).
 - **Done when**: a human can complete J1 (humanity check → vote → unlock), J5
   (add a subject), J6 (English-fallback matchup), and J7 (pass the humanity
   check) in a browser.
+  *Code-complete: `npm run build` green (38 modules); all components compile
+  against the M3/M4 API verified live. The final in-browser J1/J5/J6/J7
+  click-through is the one step that needs a human at a browser — run `make dev`
+  (free :8080 first) and walk it.*
 
-### M6 — Polish & hardening
-- [ ] Responsive/mobile; loading/empty/error states; a11y (alt text, focus,
-      contrast).
-- [ ] Body-size limits, input validation; tune rate-limit thresholds; apply the
-      limiter to `POST /api/subjects` too; document the edge/IP limit for prod.
-- [ ] Production build: Go serves the built SPA same-origin; one binary + Postgres.
-- [ ] README run instructions verified from scratch; `EAGORA_TOKEN_SECRET`
-      required in prod.
+### M6 — Polish & hardening ✅ (done)
+- [x] Responsive/mobile (flex cards + nav media query); loading/empty/error
+      states; a11y — alt text, modal Esc-to-close, `aria-live` banner/toast.
+- [x] Body-size limits (`MaxBytesReader` on all mutating endpoints) + input
+      validation; per-session rate limit applied to `POST /api/subjects` too;
+      edge/IP limit documented for prod ([04](04-api.md) §Abuse).
+- [x] Production build: `EAGORA_STATIC_DIR` makes Go serve the built SPA
+      same-origin (with SPA fallback); `Dockerfile.prod` bundles SPA + backend
+      into one image (`make prod-build`).
+- [x] README verified from scratch (dev + prod); `EAGORA_TOKEN_SECRET` **required**
+      — the server refuses to boot without it.
 - **Done when**: `J1`–`J6` all behave per [functional spec](01-functional-spec.md).
+  *Met (server-side): one binary serves `/` + client routes (SPA fallback) +
+  real assets + the gated API (`/api/leaderboard` → 403 without a token), and
+  boot fails fast on a missing secret — all verified live. The full in-browser
+  J1–J6 walkthrough still wants a human at a browser (`make dev`).*
+
+### M7 — Glicko-2 rating engine ✅ (done)
+Replace Elo with Glicko-2 so ratings carry an explicit uncertainty: visitor-added
+subjects converge fast and the board ranks conservatively until a rating is proven.
+- [x] `internal/ranking` rewritten to Glicko-2 (pure, value-typed `Rating{R,RD,Vol}`;
+      each vote = a one-game rating period; Illinois-algorithm volatility solver),
+      **with unit tests** validated against Glickman's published worked example.
+- [x] Migration `0002_glicko2.sql`: `subjects.rd`/`volatility` columns, conservative
+      board index `((rating - 2*rd) DESC)`, and `votes` pre-vote snapshots
+      (`*_rd_before`, `*_vol_before`); existing subjects keep their rating with an
+      evidence-scaled starting RD.
+- [x] `RecordVote` reads/writes the full `(rating, rd, volatility)` state; leaderboard
+      orders by conservative rating; API exposes `ratingDeviation`; the board UI marks
+      high-RD entries **provisional**.
+- [x] **Coverage-biased pairing** — `store.RandomPair` weights selection by
+      `1/(comparisons+1)` via Efraimidis–Spirakis (`power(random(), comparisons+1)`),
+      the supply side of conservative ordering: unproven subjects get shown (and their
+      `RD` tightened) fast, so the board doesn't ossify to the seed pool.
+- **Done when**: ranking tests green (incl. the Glickman anchor); voting moves
+  `R`/`RD`/`σ` correctly under concurrency; the board sorts by `rating − 2·RD`;
+  new subjects are oversampled until their `RD` shrinks.
 
 ## Definition of done (v1)
 
@@ -118,7 +163,8 @@ All requirements demonstrably met:
 - **R4/R10** — leaderboard returns `403` without a valid token; voting mints a
   24h token; expiry re-locks. Verified by test and by hand.
 - **R5** — land → A vs B → vote → leaderboard works in the browser.
-- **R6** — leaderboard order is driven purely by accumulated votes (Elo).
+- **R6** — leaderboard order is driven purely by accumulated votes (Glicko-2
+  conservative rating, `rating − 2·RD`).
 - **R8/R8.1** — a visitor with a valid token can add any human with a Wikipedia
   page; it enters matchups; adds are capped at one per token (≈ one per 24h).
 - **R9** — matchups render in the visitor's language when both subjects have it,
@@ -133,10 +179,10 @@ All requirements demonstrably met:
 
 | Layer | Tests |
 |-------|-------|
-| `ranking` | unit (pure Elo properties) |
+| `ranking` | unit (pure Glicko-2 properties: direction, RD shrinks with evidence, non-conservation, upset magnitude) + Glickman's published worked example as a regression anchor |
 | `token` | unit (valid / tampered signature / expired / wrong secret); fixed-window mint-if-none; one-add-per-`jti` ledger claim incl. concurrent-claim race |
 | `ratelimit` | unit (burst admitted, refill over time, empty→reject, per-key isolation, idle eviction) |
-| `human` | unit (signed challenge round-trips; tampered/expired/replayed → reject; dissent pass / affirm fail; control-item inversion; **never-first-try holds attempt 1**; instant-click flagged but slow/assistive timing **not** blocked; per-provider) |
+| `human` | unit (signed challenge round-trips; tampered/expired/replayed → reject; dissent pass / affirm fail; control-item inversion; instant-click flagged but slow/assistive timing **not** blocked; per-provider) |
 | `lang` | unit (Accept-Language parsing; R9 both-or-English decision) |
 | `store` | integration vs disposable Postgres (testcontainers / CI service) |
 | `ingest` | parse tests on captured Wikidata/summary fixtures; human-check & skip rules |
@@ -150,7 +196,7 @@ All requirements demonstrably met:
 | Wikidata/Wikipedia throttle the seed | Proper User-Agent, low sequential rate, retry/backoff; committed `un_leaders.json` snapshot + offline fallback (06). |
 | `EAGORA_TOKEN_SECRET` unset/weak in prod | Required at boot in prod; rotating it invalidates all tokens (kill-switch). |
 | No-auth vote stuffing / spam adds | Layered: humanity check (R12, bots can't vote) + per-session rate limit (R11) + adds gated **one per token** (R8.1) via the `jti` ledger; human+page+QID checks; `active=false` hide switch. Determined attackers out of scope for v1; server gates authoritative. |
-| Humanity check defeated / frustrates humans | Layered signals (dissent + soft interaction-timing + never-first-try); rotating prompt pool + randomized order + sincere control items resist a fixed pass-rule; short window; **pluggable** `turnstile`/`pow` to layer/replace (Overview Q8). Timing **never hard-fails alone** (a11y); honest: not bulletproof vs a reasoning adversary that emulates human timing. |
+| Humanity check defeated / frustrates humans | Layered signals (dissent + soft interaction-timing); rotating prompt pool + randomized order + sincere control items resist a fixed pass-rule; short window; **pluggable** `turnstile`/`pow` to layer/replace (Overview Q8). Timing **never hard-fails alone** (a11y); honest: not bulletproof vs a reasoning adversary that emulates human timing. |
 | Lazy translation fetch adds matchup latency | English pre-cached at seed; popular languages warm quickly; fetch is one summary call, then cached. |
 | Subject with no English page (R9 fallback gap) | Require `en` for seed leaders; fallback chain for the rare user-add (Overview Q6). |
 | Cold-start rating jitter | Expected; show `comparisons`; consider K-decay later (05). |

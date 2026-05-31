@@ -24,7 +24,8 @@ Types are Postgres-native: `BIGINT … GENERATED ALWAYS AS IDENTITY` keys,
   │ contributions      │          │ wikidata_id (UQ)  ← identity anchor  │
   │ created_at         │          │ canonical_name, country, source      │
   │ last_seen_at       │          │ available_langs TEXT[]               │
-  └─────────┬──────────┘          │ rating, wins, losses, comparisons,   │
+  └─────────┬──────────┘          │ rating, rd, volatility,              │
+            │                     │ wins, losses, comparisons,           │
             │                     │ active, created_at, updated_at       │
             │ 1                   └───┬───────────────────────┬──────────┘
             │                      1  │                   2 (winner,loser)
@@ -34,9 +35,10 @@ Types are Postgres-native: `BIGINT … GENERATED ALWAYS AS IDENTITY` keys,
           │ id (PK) · session_id (FK)  │  subject_translations   │
           │ winner_id (FK→subjects)    │  (subject_id, lang) PK   │
           │ loser_id  (FK→subjects)    │  name, description,      │
-          │ winner_rating_before       │  image_url, wikipedia_url│
-          │ loser_rating_before        │  fetched_at              │
-          │ created_at                 │  FK→subjects(id)         │
+          │ winner/loser_rating_before │  image_url, wikipedia_url│
+          │ winner/loser_rd_before     │  fetched_at              │
+          │ winner/loser_vol_before    │  FK→subjects(id)         │
+          │ created_at                 │                          │
           └────────────────────────────┴──────────────────────────┘
 ```
 
@@ -56,7 +58,9 @@ real Wikidata entity that has at least one Wikipedia page (R2).
 | `country` | TEXT | best-effort (Wikidata for leaders); nullable |
 | `source` | TEXT NOT NULL DEFAULT `'seed'` | `'seed'` (UN leaders) or `'user'` (R8) |
 | `available_langs` | TEXT[] NOT NULL DEFAULT `'{}'` | Wikipedia language codes with a page (drives R9 without remote checks) |
-| `rating` | DOUBLE PRECISION NOT NULL DEFAULT 1500 | Elo score; ranking key |
+| `rating` | DOUBLE PRECISION NOT NULL DEFAULT 1500 | Glicko-2 rating; ranking key |
+| `rd` | DOUBLE PRECISION NOT NULL DEFAULT 350 | Glicko-2 rating deviation (uncertainty); shrinks with evidence |
+| `volatility` | DOUBLE PRECISION NOT NULL DEFAULT 0.06 | Glicko-2 volatility (σ); how erratic results have been |
 | `wins` | INTEGER NOT NULL DEFAULT 0 | times chosen as winner |
 | `losses` | INTEGER NOT NULL DEFAULT 0 | times chosen as loser |
 | `comparisons` | INTEGER NOT NULL DEFAULT 0 | `wins + losses`; denormalized |
@@ -74,7 +78,7 @@ real Wikidata entity that has at least one Wikipedia page (R2).
 
 **Indexes**
 - `UNIQUE(wikidata_id)` — dedup/upsert key.
-- `INDEX(rating DESC) WHERE active` — leaderboard query.
+- `INDEX((rating - 2 * rd) DESC) WHERE active` — leaderboard query (conservative-rating order, [05](05-ranking.md)).
 - `INDEX(comparisons) WHERE active` — coverage-biased pairing ([05](05-ranking.md)).
 - `GIN(available_langs)` — fast "has language L" membership (R9).
 
@@ -111,8 +115,12 @@ source.
 | `session_id` | TEXT NOT NULL | FK → `sessions.id`; which browser voted |
 | `winner_id` | BIGINT NOT NULL | FK → `subjects.id`; preferred subject |
 | `loser_id` | BIGINT NOT NULL | FK → `subjects.id`; the other subject |
-| `winner_rating_before` | DOUBLE PRECISION NOT NULL | audit |
-| `loser_rating_before` | DOUBLE PRECISION NOT NULL | audit |
+| `winner_rating_before` | DOUBLE PRECISION NOT NULL | audit; winner's `rating` before the update |
+| `loser_rating_before` | DOUBLE PRECISION NOT NULL | audit; loser's `rating` before the update |
+| `winner_rd_before` | DOUBLE PRECISION | audit; winner's `rd` before (NULL for pre-Glicko-2 rows) |
+| `loser_rd_before` | DOUBLE PRECISION | audit; loser's `rd` before (NULL for pre-Glicko-2 rows) |
+| `winner_vol_before` | DOUBLE PRECISION | audit; winner's `volatility` before (NULL for pre-Glicko-2 rows) |
+| `loser_vol_before` | DOUBLE PRECISION | audit; loser's `volatility` before (NULL for pre-Glicko-2 rows) |
 | `created_at` | TIMESTAMPTZ NOT NULL DEFAULT now() | |
 
 **Invariants**: `winner_id <> loser_id`; both reference `active` subjects at vote
@@ -175,6 +183,8 @@ CREATE TABLE subjects (
   source          TEXT    NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','user')),
   available_langs TEXT[]  NOT NULL DEFAULT '{}',
   rating          DOUBLE PRECISION NOT NULL DEFAULT 1500,
+  rd              DOUBLE PRECISION NOT NULL DEFAULT 350,    -- Glicko-2 rating deviation
+  volatility      DOUBLE PRECISION NOT NULL DEFAULT 0.06,   -- Glicko-2 volatility (σ)
   wins            INTEGER NOT NULL DEFAULT 0,
   losses          INTEGER NOT NULL DEFAULT 0,
   comparisons     INTEGER NOT NULL DEFAULT 0,
@@ -182,7 +192,7 @@ CREATE TABLE subjects (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_subjects_board    ON subjects(rating DESC) WHERE active;
+CREATE INDEX idx_subjects_board    ON subjects ((rating - 2 * rd) DESC) WHERE active;
 CREATE INDEX idx_subjects_coverage ON subjects(comparisons) WHERE active;
 CREATE INDEX idx_subjects_langs    ON subjects USING GIN (available_langs);
 
@@ -212,6 +222,10 @@ CREATE TABLE votes (
   loser_id              BIGINT NOT NULL REFERENCES subjects(id),
   winner_rating_before  DOUBLE PRECISION NOT NULL,
   loser_rating_before   DOUBLE PRECISION NOT NULL,
+  winner_rd_before      DOUBLE PRECISION,                   -- Glicko-2 snapshots; NULL for
+  loser_rd_before       DOUBLE PRECISION,                   -- rows written before 0002
+  winner_vol_before     DOUBLE PRECISION,
+  loser_vol_before      DOUBLE PRECISION,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (winner_id <> loser_id)
 );
@@ -250,13 +264,15 @@ The leaderboard localizes the same way using the request's resolved language
 
 ## Derived data & integrity
 
-- **Leaderboard** = `SELECT ... FROM subjects WHERE active ORDER BY rating DESC,
-  comparisons DESC, canonical_name ASC` (deterministic tie-break), joined to
-  `subject_translations` for the display language.
+- **Leaderboard** = `SELECT ... FROM subjects WHERE active ORDER BY
+  (rating - 2 * rd) DESC, rd ASC, canonical_name ASC` (conservative-rating order,
+  deterministic tie-break), joined to `subject_translations` for the display
+  language.
 - **Total votes** = `COUNT(*) FROM votes`.
-- **Recompute path**: because `votes` is append-only with `*_rating_before`,
-  ratings can be rebuilt by replaying votes in `created_at` order if the Elo
-  K-factor changes (see [05](05-ranking.md)).
+- **Recompute path**: because `votes` is append-only and snapshots the full
+  pre-vote state (`*_rating_before`, `*_rd_before`, `*_vol_before`), ratings can
+  be rebuilt by replaying votes in `created_at` order if the Glicko-2 parameters
+  change (see [05](05-ranking.md)).
 
 ## Data lifecycle
 

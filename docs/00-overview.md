@@ -116,8 +116,8 @@ Refinements from the product owner, layered onto R1–R7:
 | **Session** | An anonymous, server-issued cookie used only to count a visitor's contributions for UI. **Not** auth, and **separate** from the access token. |
 | **Wikidata QID** | The language-independent identity anchor for a subject (e.g. `Q567`), mapping to per-language Wikipedia pages. |
 | **Display language** | The language a matchup is rendered in, resolved per R9 (visitor language if both subjects have it, else English). |
-| **Rating** | A subject's Elo score; the basis of the ranking. |
-| **Leaderboard** | Subjects ordered by rating, descending. |
+| **Rating** | A subject's Glicko-2 rating (with a deviation/uncertainty); the basis of the ranking. |
+| **Leaderboard** | Subjects ordered by their conservative rating (`rating − 2·RD`), descending. |
 
 ## Design decisions (made here, detailed in later docs)
 
@@ -126,7 +126,7 @@ They are recorded so they can be challenged.
 
 | ID | Decision | Rationale | Detailed in |
 |----|----------|-----------|-------------|
-| D1 | **Elo** for ranking | Standard, well-understood model for pairwise comparisons; produces a stable total order. | [05](05-ranking.md) |
+| D1 | **Glicko-2** for ranking | Pairwise model that also tracks each rating's *uncertainty* (RD) and volatility, so visitor-added subjects converge fast and sort conservatively until proven; supersedes Elo. | [05](05-ranking.md) |
 | D2 | **PostgreSQL** (via `pgx`/`pgxpool`) | Robust relational store with real concurrency, transactions, and types; the natural fit for consistent rating updates under concurrent voters. Run locally via Docker for dev. | [02](02-architecture.md), [03](03-data-model.md) |
 | D3 | **Stateless 24h signed access token** as the gate (R10) | A voter receives a JWS/HMAC-signed token (`{iss, iat, exp, jti}`, **no subject id**) delivered as an `httpOnly`+`SameSite=Lax` cookie, with a **fixed** 24h window (not rolling). Most anonymous (carries no identifier; nothing to correlate) **and** most secure for a low-stakes read capability (unforgeable, XSS-resistant, time-boxed). Decoupled from the session. The random `jti` also enforces one-add-per-token (D9). | [01](01-functional-spec.md), [04](04-api.md) |
 | D4 | **Seed-on-startup** ingestion (Wikidata → Wikipedia) | Keeps the pool real (R2) without a separate ETL service; persisted to PostgreSQL so it runs once. | [06](06-wikipedia-ingestion.md) |

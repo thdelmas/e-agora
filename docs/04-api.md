@@ -75,14 +75,17 @@ Rendered in the request's **display language** (matchup) or per-entry language
   "rank": 1,
   "subject": { "...Subject..." : "" },
   "rating": 1624.8,
+  "ratingDeviation": 62.4,
   "wins": 51,
   "losses": 19,
   "comparisons": 70,
   "lang": "en"
 }
 ```
-`lang` is the language this entry was localized to (the requested language, or
-`en` if that subject lacks it).
+`rating` is the Glicko-2 rating; `ratingDeviation` (RD) is its uncertainty — a
+high value (≳110) means the entry is still **provisional** and the client may
+flag it. `lang` is the language this entry was localized to (the requested
+language, or `en` if that subject lacks it).
 
 ## Endpoints
 
@@ -118,7 +121,7 @@ Issue an anonymous humanity challenge (R12). Mints a session cookie if none.
 **200**
 ```json
 {
-  "challengeId": "<signed: promptId, passCondition, nonce, attempt, exp — opaque to client>",
+  "challengeId": "<signed: promptId, passCondition, nonce, exp — opaque to client>",
   "prompt": "I fully trust that all world leaders serve humanity's interest before their own.",
   "kind": "oath",
   "options": [
@@ -145,12 +148,6 @@ cadence) used as a **soft** behavioral signal.
   "timing": { "decideMs": 2400, "instant": false, "pointerMoves": 7 } }
 ```
 
-**200 (held — never-first-try)** — the **first** attempt always returns this with
-a fresh, reframed challenge, regardless of the answer:
-```json
-{ "verified": false, "reason": "decide_again",
-  "challengeId": "<next attempt>", "prompt": "…", "options": [ … ] }
-```
 **200 (pass)** — sets/updates `sessions.human_verified_until`
 ```json
 { "verified": true, "humanVerifiedUntil": "2026-06-01T12:00:00Z" }
@@ -159,12 +156,10 @@ a fresh, reframed challenge, regardless of the answer:
 ```json
 { "verified": false, "reason": "try_again", "challengeId": "<fresh>", "prompt": "…", "options": [ … ] }
 ```
-Validates the signed `challengeId` (signature + `exp` + nonce + attempt count),
-enforces **never-first-try** (`attempt < EAGORA_HUMAN_MIN_ATTEMPTS` ⇒ held), then
-checks the pass condition and that `timing` isn't bot-flagged. `timing` **never
-hard-fails on its own** (accessibility) and is **not stored** (privacy). Repeated
-calls fall under the rate limit (R11); each challenge is single-use within its
-short `exp`.
+Validates the signed `challengeId` (signature + `exp` + nonce), then checks the
+pass condition and that `timing` isn't bot-flagged. `timing` **never hard-fails
+on its own** (accessibility) and is **not stored** (privacy). Repeated calls fall
+under the rate limit (R11); each challenge is single-use within its short `exp`.
 
 ### `POST /api/votes`
 
@@ -187,7 +182,7 @@ human_check_required` (the client then runs the humanity check and retries).
 {
   "contributions": 4,
   "accessTokenExpiresAt": "2026-06-01T12:00:00Z",
-  "a": { "...updated winner Subject (rating may be included here)..." : "" },
+  "a": { "...updated winner Subject (rating/ratingDeviation may be included here)..." : "" },
   "b": { "...updated loser Subject..." : "" }
 }
 ```
@@ -226,11 +221,12 @@ Ranked standings. **Gated by the access token (R4 + R10).**
   "totalVotes": 12840,
   "limit": 100, "offset": 0, "count": 100,
   "entries": [
-    { "rank": 1, "subject": { }, "rating": 1624.8, "wins": 51, "losses": 19, "comparisons": 70, "lang": "en" }
+    { "rank": 1, "subject": { }, "rating": 1624.8, "ratingDeviation": 62.4, "wins": 51, "losses": 19, "comparisons": 70, "lang": "en" }
   ]
 }
 ```
-Ordering: `rating DESC, comparisons DESC, canonical_name ASC` (deterministic).
+Ordering: `(rating - 2*rd) DESC, rd ASC, canonical_name ASC` (conservative Glicko-2
+rating; deterministic tie-break — see [05](05-ranking.md) §Leaderboard ordering).
 Each entry localizes to the requested language, falling back to `en` per subject.
 
 ### `POST /api/subjects`

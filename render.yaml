@@ -1,0 +1,37 @@
+# Render Blueprint — deploys e-agora as ONE container (Vue SPA + Go API,
+# same-origin) built from Dockerfile.prod. Storage is a free Neon Postgres
+# (neon.tech) wired in via DATABASE_URL. Full walkthrough: docs/08-deploy.md
+#
+# Apply: Render Dashboard → New → Blueprint → pick this repo. Render reads this
+# file, creates the service, and prompts for the one secret it can't generate
+# (DATABASE_URL). Custom-domain + free TLS are added afterwards (see the doc).
+services:
+  - type: web
+    name: e-agora
+    runtime: docker
+    plan: free
+    # Free instances cold-start (~1 min) after 15 min idle — fine for a hobby
+    # site. Match this region to your Neon project's region for low DB latency.
+    region: frankfurt
+    dockerfilePath: ./Dockerfile.prod
+    dockerContext: .
+    # Public health endpoint — reports the live subject count (no token needed).
+    healthCheckPath: /api/healthz
+    autoDeploy: true
+    envVars:
+      # Neon DIRECT (non-pooled) connection string, WITH ?sslmode=require.
+      # Use the direct string, not the pooled/PgBouncer one: e-agora holds a
+      # long-lived pgxpool, and the direct endpoint avoids pgx-v5's prepared-
+      # statement incompatibility with PgBouncer transaction mode.
+      - key: DATABASE_URL
+        sync: false
+      # Signs the 24h access token and humanity challenges (REQUIRED — the
+      # server refuses to boot without it). Render generates a strong value
+      # once and keeps it; rotating it invalidates all live tokens.
+      - key: EAGORA_TOKEN_SECRET
+        generateValue: true
+      # Seed the UN-leaders pool from Wikidata/Wikipedia on first boot, then
+      # short-circuit (the pool is non-empty). See the seeding note in the doc
+      # if you'd rather seed once locally and set this to "off".
+      - key: EAGORA_SEED
+        value: auto

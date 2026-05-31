@@ -20,9 +20,9 @@
 
 - The **SPA** renders the matchup and leaderboard and talks to the backend only
   through `/api/*` JSON endpoints.
-- The **Go backend** owns all logic: pairing, vote recording, Elo updates, the
-  contribution gate, and serving the leaderboard. It also serves the built SPA
-  static assets in production.
+- The **Go backend** owns all logic: pairing, vote recording, Glicko-2 rating
+  updates, the contribution gate, and serving the leaderboard. It also serves the
+  built SPA static assets in production.
 - **PostgreSQL** is the single source of runtime truth (subjects, votes,
   sessions), accessed through a `pgxpool` connection pool.
 - **Wikipedia** is contacted only by the **seed/ingestion** step, not on the hot
@@ -35,7 +35,7 @@
 | Go stdlib `net/http` + **chi** router | Tiny, idiomatic, no heavyweight framework; chi adds clean routing/middleware only. | Gin/Echo (more than needed). |
 | **PostgreSQL** via `pgx`/`pgxpool` | Real concurrency and `SERIALIZABLE`/row-locking semantics for consistent rating updates; rich types (`TIMESTAMPTZ`, `BOOLEAN`, `DOUBLE PRECISION`); easy to operate and scale beyond v1. | SQLite (single-writer contention under concurrent voters); in-memory/JSON (no durability, races). |
 | **Vue 3 + Vite** | Requested stack; fast dev server, simple SFCs, first-class Router. | Nuxt (SSR unnecessary; SPA is enough). |
-| Elo in-process | Pure function over two ratings; no service needed. | Trueskill/Glicko (overkill for v1; revisit — see [05](05-ranking.md)). |
+| Glicko-2 in-process | Pure function over two ratings (R, RD, σ); no service needed. Models rating *uncertainty* so unproven subjects sort conservatively and converge fast — see [05](05-ranking.md). | Elo (one number, no confidence — replaced); TrueSkill (built for N-player/team games, overkill for strict 1v1). |
 | **Stateless signed access token** (24h) as the gate | Enforces R4+R10 without auth (R3); anonymous (no stored record, no identifier) and unforgeable. | Server-stored token (correlatable record, extra lookup); permanent unlock (violates R10). |
 | Anonymous cookie session (counter only) | Drives the "you've voted N" UI and pairing variety; non-identifying. | — (kept minimal; **not** the gate). |
 | **Wikidata** to enumerate UN leaders; **Wikipedia REST** for summaries | Wikidata gives authoritative, language-independent QIDs for P35/P6 holders; Wikipedia summaries give localized name/description/image. | Hardcoded roster (stale, manual); scraping (brittle). |
@@ -55,7 +55,7 @@ e-agora/
 │   ├── internal/
 │   │   ├── http/              # router, handlers, middleware (session, lang, rate, CORS)
 │   │   ├── store/             # PostgreSQL access (pgxpool), migrations, queries
-│   │   ├── ranking/           # Elo: pure functions + tests
+│   │   ├── ranking/           # Glicko-2: pure functions + tests
 │   │   ├── matchup/           # pair selection logic
 │   │   ├── token/             # mint/verify stateless 24h access tokens (HMAC)
 │   │   ├── ratelimit/         # per-session token-bucket limiter (R11) + tests
@@ -176,7 +176,6 @@ e-agora/
   `1`), `EAGORA_RATELIMIT` (`on`|`off`, default `on`),
   `EAGORA_HUMAN_PROVIDER` (`dissent`|`turnstile`|`pow`, default `dissent`),
   `EAGORA_HUMAN_TTL` (human-verified window, default `24h`),
-  `EAGORA_HUMAN_MIN_ATTEMPTS` (never-first-try, default `2`),
   `EAGORA_CORS_ORIGIN` (dev only).
 
 ## Frontend internals
@@ -207,11 +206,9 @@ GET /api/matchup
 ```
 GET  /api/human/challenge
   → human.NewChallenge()   # pick prompt from pool, randomize options
-  → 200 { challengeId(signed: promptId, passCond, nonce, attempt, exp), prompt, options }
+  → 200 { challengeId(signed: promptId, passCond, nonce, exp), prompt, options }
 POST /api/human/verify { challengeId, answer, timing }
   → verify signature + exp
-  → attempt < EAGORA_HUMAN_MIN_ATTEMPTS (never-first-try)?
-        → 200 { verified:false, challengeId(attempt+1), prompt, options }   # reframed
   → answer satisfies passCond?  AND  timing not bot-flagged (soft)?
         no  → 200 { verified:false, challengeId(fresh) }
         yes → UPDATE sessions SET human_verified_until = now + EAGORA_HUMAN_TTL
@@ -228,7 +225,7 @@ POST /api/votes { winnerId, loserId }
   → validate pair (both active, distinct, winner≠loser)
   → BEGIN TX
       SELECT … FOR UPDATE both subjects (ordered by id)
-      ranking.Update(winner, loser)   # Elo
+      ranking.Update(winner, loser)   # Glicko-2 (R, RD, σ for both)
       store.SaveVote(...)
       store.IncrementSessionContrib(sessionID)
     COMMIT
@@ -280,7 +277,8 @@ fail loudly with guidance if `DATABASE_URL` is unreachable.
   codes are stable strings (e.g. `access_required`, `access_expired`,
   `invalid_matchup`, `not_a_person`).
 - **Logging**: structured (`slog`); log seed progress, vote throughput, errors.
-- **Testing**: `ranking` has unit tests (Elo is pure); `store` and `http` have
+- **Testing**: `ranking` has unit tests (Glicko-2 is pure — validated against
+  Glickman's published worked example); `store` and `http` have
   integration tests against a disposable PostgreSQL (a CI service container or
   `testcontainers-go`).
 - **Security posture**: see [04](04-api.md) §Abuse — light mitigations only; this

@@ -1,0 +1,4 @@
+# Never copy host-built artifacts into the image; npm ci rebuilds them.
+node_modules
+dist
+.env

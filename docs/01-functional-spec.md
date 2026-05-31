@@ -20,7 +20,7 @@ hidden via an `active` flag out-of-band.
                  ┌──────────────────────────────────────────────────┐
                  │                                                  │
    ┌──────────┐  │  ┌───────────┐   vote   ┌──────────────────┐     │
-   │  Visitor │──┼─▶│  Matchup  │─────────▶│ Recorded + Elo,  │─────┘
+   │  Visitor │──┼─▶│  Matchup  │─────────▶│ Recorded + rated │─────┘
    │  lands   │  │  │  A  vs  B │          │ 24h access token │
    └──────────┘  │  └─────┬─────┘          │ (re)issued       │
                  │    ▲   │ add (needs token,      └────────┬─────────┘

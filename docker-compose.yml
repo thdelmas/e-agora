@@ -1,7 +1,9 @@
-# Local development dependencies for e-agora.
-# v1 needs only PostgreSQL — the Go app and Vite dev server run on the host.
-#   docker compose up -d db      # start Postgres
-#   docker compose down          # stop (data persists in the named volume)
+# e-agora local stack.
+#   make dev                  # build + run db + backend + frontend
+#   docker compose up -d db   # just Postgres (run app on the host instead)
+#   docker compose down       # stop (data persists in the named volume)
+#
+# Once up:  frontend → http://localhost:5173   backend → http://localhost:8080/api/healthz
 services:
   db:
     image: postgres:16-alpine
@@ -19,6 +21,34 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backend:
+    build: ./backend
+    container_name: eagora-backend
+    environment:
+      EAGORA_ADDR: ":8080"
+      DATABASE_URL: postgres://eagora:eagora@db:5432/eagora?sslmode=disable
+      # Dev secret only — set a real one in production.
+      EAGORA_TOKEN_SECRET: dev-insecure-change-me
+      # auto: seed the pool from Wikidata/Wikipedia on first boot (background;
+      # needs network). Set to "off" to skip.
+      EAGORA_SEED: auto
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: eagora-frontend
+    environment:
+      # Vite proxies /api to the backend service (see vite.config.js).
+      VITE_PROXY_TARGET: http://backend:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
 
 volumes:
   eagora_pgdata:
