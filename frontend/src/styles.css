@@ -204,12 +204,14 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 /* Mobile-first: the two candidates sit side by side in a tight two-column
    grid so a voter can compare them at a glance without scrolling. The VS
    medallion floats over the seam (absolutely positioned, see `.vs`).
-   `--portrait-h` is shared with `.vs` so the medallion stays centred on the
-   portraits at any size. The roomy desktop layout takes over at ≥720px. */
+   The portraits are full-width 1:1 squares, so their rendered height equals a
+   card's content width: half the row minus the column gap and card padding.
+   `--portrait-h` tracks that height so the medallion stays centred at any phone
+   size. The roomy desktop layout takes over at ≥720px. */
 .cards {
   display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;
   align-items: stretch; justify-content: center; position: relative;
-  --portrait-h: 150px;
+  --portrait-h: calc(50vw - 3.375rem);
 }
 .cards.busy { opacity: 0.55; pointer-events: none; filter: saturate(0.7); transition: opacity 0.2s, filter 0.2s; }
 
@@ -244,8 +246,12 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 }
 .side-b .side-tag { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); }
 
+/* Square (1:1) frame anchored to the top: Wikipedia portraits are taller than
+   wide with the head near the top, so `object-position: top` keeps the head and
+   crops the torso instead. `--portrait-h` mirrors this rendered height (= the
+   card's content width) so the floating `.vs` medallion stays centred on it. */
 .portrait {
-  width: 100%; height: var(--portrait-h, 240px); object-fit: cover; border-radius: 12px;
+  width: 100%; aspect-ratio: 1 / 1; object-fit: cover; object-position: top; border-radius: 12px;
   background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line);
 }
 .portrait.placeholder {
@@ -319,7 +325,9 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
    medallion back in the flow between them (the original desktop look).
    Everything above is the mobile-first baseline. */
 @media (min-width: 720px) {
-  .cards { display: flex; flex-wrap: wrap; gap: 1.1rem; --portrait-h: 240px; }
+  /* Side-by-side flow with the medallion back in normal flow (`.vs` below), so
+     `--portrait-h` is no longer needed to position it. */
+  .cards { display: flex; flex-wrap: wrap; gap: 1.1rem; }
   .card { flex: 1 1 300px; max-width: 380px; padding: 1.1rem; }
   .card .prefer { padding: 0.7rem 1rem; font-size: 1rem; }
   .name { font-size: 1.35rem; margin: 0.7rem 0 0.15rem; }
@@ -370,7 +378,7 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 }
 .row:hover { transform: translateX(3px); box-shadow: var(--shadow-md); }
 .rank { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; color: var(--muted); text-align: center; }
-.thumb { width: 46px; height: 46px; object-fit: cover; border-radius: 10px; background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line); }
+.thumb { width: 46px; height: 46px; object-fit: cover; object-position: top; border-radius: 10px; background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line); }
 .name-cell { min-width: 0; }
 .row .name { display: block; font-size: 1rem; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -452,7 +460,7 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   border: none; border-radius: 10px; padding: 0.55rem; background: transparent; transition: background 0.14s;
 }
 .search-results .result:hover:not(:disabled) { background: rgba(31, 110, 76, 0.08); }
-.result-thumb { width: 42px; height: 42px; object-fit: cover; border-radius: 8px; flex: none; background: #efe7d6; }
+.result-thumb { width: 42px; height: 42px; object-fit: cover; object-position: top; border-radius: 8px; flex: none; background: #efe7d6; }
 .result-thumb.placeholder { background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 8px, #e9dfc9 8px, #e9dfc9 16px); }
 .result-text { display: flex; flex-direction: column; min-width: 0; }
 .result-text strong { font-weight: 700; }
@@ -466,7 +474,7 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   border-radius: 12px; padding: 0.7rem; margin: 0.55rem 0 0.85rem;
 }
 .added-portrait {
-  width: 64px; height: 64px; object-fit: cover; border-radius: 10px; flex: none; background: #efe7d6;
+  width: 64px; height: 64px; object-fit: cover; object-position: top; border-radius: 10px; flex: none; background: #efe7d6;
 }
 .added-portrait.placeholder {
   background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 8px, #e9dfc9 8px, #e9dfc9 16px);
@@ -626,6 +634,10 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   .topbar { gap: 0.5rem; }
   .nav { width: 100%; margin: 0.4rem 0 0; justify-content: flex-start; flex-wrap: wrap; }
   .content { padding: 1.25rem 0.7rem 2.5rem; }
+  /* Tighter page padding here widens the cards, so the square portraits (and the
+     medallion centred on them) grow — match `--portrait-h` to the new content
+     width: half the row minus the 0.7rem page padding, gap, and card padding. */
+  .cards { --portrait-h: calc(50vw - 2.575rem); }
   .row { grid-template-columns: 2rem 40px minmax(0, 1fr) auto; gap: 0.6rem; }
   .winbar { display: none; }
   .modal-backdrop { padding: 0.6rem; }
