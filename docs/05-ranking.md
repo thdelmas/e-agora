@@ -109,39 +109,66 @@ stay consistent; votes on disjoint pairs proceed in parallel.
 Which two subjects to show. Goal: keep it interesting **and** give every subject
 enough comparisons for a meaningful rating.
 
-### Strategy: coverage-biased pair (current)
+### Strategy: anchor + challenger (current)
 
-Bias selection toward subjects with **few comparisons** so the whole pool gets
-rated — and its `RD` tightened — quickly. This is the **supply side** of the
-conservative leaderboard: ranking by `rating − 2·RD` buries a subject until its
-`RD` shrinks, and `RD` only shrinks when the subject is shown. Coverage bias is
-what makes sure unproven subjects actually get the votes that let them climb;
-without it, conservative ordering would ossify the board to the seed pool.
+Each matchup pairs one **anchor** (weighted toward fame) with one **challenger**
+(weighted toward few comparisons). This came out of real feedback: drawing
+*both* picks by coverage bias (the prior strategy, below) surfaced too many
+pairs of mutual unknowns — "voting between two people we don't know about." A
+pairwise vote only carries signal when the visitor can actually judge it, so we
+guarantee one half of every pair leans recognizable.
 
-Weight each subject by `wᵢ = 1 / (comparisons + 1)` and draw two distinct ones.
-We realize this with **Efraimidis–Spirakis** weighted sampling without
-replacement — assign each row a key `random()^(1/wᵢ)` and take the two largest:
+**Anchor — the familiar half.** Weight each subject by
+`wᵢ = cardinality(available_langs)`: the number of Wikipedia *language editions*
+it has. That count is a strong, stable, **public and non-personal** popularity
+proxy — a globally famous leader has articles in 100+ languages, an obscure one
+in a handful — and it's already stored at ingest from Wikidata sitelinks, so this
+needs no new data, no extra API, no refresh job, and **no user profiling**
+(privacy intact: we never model who *this* visitor knows, only who the *world*
+writes about). Efraimidis–Spirakis top-1 gives `P(pick = i) ∝ wᵢ`, so the slot
+favors well-known figures while still rotating across the upper tier. There's no
+fixed "is famous" threshold to tune — it self-adjusts to whatever the pool holds,
+and degrades to near-uniform if the whole pool is obscure.
+
+**Challenger — the coverage half.** The original bias toward subjects with **few
+comparisons**, drawn over everyone but the anchor. This is the **supply side** of
+the conservative leaderboard: ranking by `rating − 2·RD` buries a subject until
+its `RD` shrinks, and `RD` only shrinks when the subject is shown. Coverage bias
+is what makes sure unproven subjects get the votes that let them climb; without
+it, conservative ordering would ossify the board to the seed pool. Pairing the
+challenger against a low-`RD` anchor is a bonus — a Glicko-2 game against a
+*certain* opponent tightens `RD` more per vote than two newcomers meeting would.
+
+Both halves use **Efraimidis–Spirakis** weighted sampling without replacement —
+assign each row a key `random()^(1/wᵢ)` and take the largest:
 
 ```sql
-SELECT id FROM subjects WHERE active
-ORDER BY power(random(), comparisons + 1) DESC LIMIT 2;
+WITH anchor AS (
+  SELECT id FROM subjects WHERE active
+  ORDER BY power(random(), 1.0 / greatest(cardinality(available_langs), 1)) DESC LIMIT 1
+), challenger AS (
+  SELECT id FROM subjects WHERE active AND id NOT IN (SELECT id FROM anchor)
+  ORDER BY power(random(), comparisons + 1) DESC LIMIT 1
+)
+SELECT id FROM anchor UNION ALL SELECT id FROM challenger
+-- (wrapped in ORDER BY random() so the anchor isn't always card A)
 ```
-An unseen subject (`comparisons = 0`) draws a plain uniform; a heavily-compared
-one draws a vanishing key and is rarely shown. With an all-zero pool this is
-exactly uniform random, so it degrades gracefully and needs no special-casing
-for a fresh deploy.
+For the challenger, an unseen subject (`comparisons = 0`) draws a plain uniform
+key and a heavily-compared one a vanishing key. `greatest(card, 1)` guards the
+all-empty-`available_langs` edge.
 
-(Full scan + sort, like the prior `ORDER BY random()`. Fine for a small pool;
-as visitor-added subjects grow it, avoid the full sort — cache the active id set
-in memory and pick two in Go, or use `TABLESAMPLE`.)
+(Two full scans + sorts. Fine for a small pool; as visitor-added subjects grow
+it, avoid the full sort — cache the active id set in memory and pick in Go, or
+use `TABLESAMPLE`.)
 
-> **Known trade-off — assortative pairing.** Because *both* picks are weighted,
-> newcomers mostly meet other newcomers and rarely the established field, so
-> their ratings calibrate against the veterans slowly. If that matters, weight
-> only one pick by coverage and draw the opponent uniformly (often an
-> established, low-`RD` subject) — a Glicko-2 game against a *certain* opponent
-> tightens `RD` more per vote anyway. Cheap to switch; left as the literal
-> spec for now.
+### History: coverage-biased pair (both picks)
+
+The first strategy weighted *both* picks by `wᵢ = 1 / (comparisons + 1)` and drew
+two distinct subjects in one sort (`ORDER BY power(random(), comparisons + 1)
+DESC LIMIT 2`). It rated the whole pool quickly but had a **known assortative
+trade-off**: newcomers mostly met other newcomers and rarely the established
+field, calibrating slowly — and, as the feedback showed, it paired unknown with
+unknown too often. The anchor + challenger split above is the prescribed fix.
 
 ### Possible later: informative pairing
 
