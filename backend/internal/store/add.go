@@ -21,6 +21,7 @@ var (
 type NewSubject struct {
 	QID, Name      string
 	Langs          []string
+	DiedAt         string // normalized YYYY-MM-DD date of death, or "" (living/unknown)
 	EnName, EnDesc string
 	EnExtract      string
 	EnImage, EnURL string
@@ -63,9 +64,9 @@ func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs)
-		VALUES ($1, $2, 'user', $3) RETURNING id`,
-		ns.QID, ns.Name, ns.Langs).Scan(&id)
+		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs, died_at)
+		VALUES ($1, $2, 'user', $3, NULLIF($4, '')::date) RETURNING id`,
+		ns.QID, ns.Name, ns.Langs, ns.DiedAt).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return 0, ErrAlreadyExists

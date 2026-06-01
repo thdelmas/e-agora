@@ -180,6 +180,8 @@ repetitive. Defer until volume justifies it.
 
 - Always two **distinct** subjects (R-V1).
 - Only `active = 1` subjects.
+- The **living only** (`died_at IS NULL`) unless the request opts the deceased in
+  (`?includeDeceased`) — see §Filtering the deceased.
 - "Skip" reuses the same endpoint → a fresh independent pair (no penalty).
 - No attempt in v1 to avoid showing a visitor the same pair twice (cheap to add
   later via per-session recent history if desired).
@@ -207,6 +209,30 @@ it near the *bottom* until votes tighten its `RD` — by design, unproven subjec
 don't masquerade as ranked. Because every subject starts at the same `RD`, the
 day-one board order still tracks raw rating, then differentiates as evidence
 accrues.
+
+## Filtering the deceased
+
+The pool mixes the living and historical figures, but a ranking of "who would you
+rather have as a leader" reads most naturally as a contest among the living. So
+both the matchup draw and the leaderboard **default to the living** and treat the
+deceased as opt-in.
+
+- **Signal.** Wikidata `P570` (date of death), read at ingest next to `P31`
+  (docs/06-wikipedia-ingestion.md §Step 2) and stored as `subjects.died_at DATE`.
+  A subject is *deceased* iff `died_at IS NOT NULL`. The rare `P570` "somevalue"
+  snak (known dead, date unknown) carries no date and is left unflagged.
+- **Filter.** Both `RandomPair` and `TopByRating` add `AND (includeDeceased OR
+  died_at IS NULL)`. Default (`includeDeceased = false`) → living only; the
+  viewer's toggle flips it for **both** surfaces at once, so the pool they vote on
+  matches the ranking they read.
+- **Ratings are untouched.** The filter is purely a read-time visibility gate:
+  `died_at` never affects the Glicko-2 math, and a deceased subject keeps every
+  rating and vote it earned. Voting on a deceased figure (toggle on) records
+  normally — `RecordVote` gates on `active`, not `died_at` — so historical figures
+  accumulate a real conservative rating to compare against the living.
+- **Backfill.** `died_at` is nullable; existing rows fill in on the next
+  `EAGORA_SEED=force`, which re-ingests every subject (ratings/votes preserved by
+  the upsert). Until then, un-backfilled rows read as living.
 
 ## Enhancements backlog (not v1)
 

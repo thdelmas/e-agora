@@ -16,7 +16,7 @@ import (
 // at the consumer, so the seeder is testable with a fake).
 type SubjectWriter interface {
 	CountSubjects(ctx context.Context) (int, error)
-	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string) (int64, error)
+	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string, diedAt string) (int64, error)
 	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error
 }
 
@@ -136,7 +136,7 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		langs = []string{"en"}
 	}
 
-	id, err := s.Store.UpsertSubject(ctx, it.QID, name, "seed", langs)
+	id, err := s.Store.UpsertSubject(ctx, it.QID, name, "seed", langs, facts.DiedAt)
 	if err != nil {
 		return fmt.Errorf("upsert subject: %w", err)
 	}

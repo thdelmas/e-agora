@@ -91,6 +91,62 @@ func TestParseEntity_MixedClaimValueTypes(t *testing.T) {
 	}
 }
 
+func TestParseEntity_DeathDate(t *testing.T) {
+	// P570 (date of death) is read alongside P31; its presence marks the subject
+	// deceased and pins the death date for display.
+	raw := []byte(`{"entities":{"Q1":{
+		"labels":{"en":{"value":"A Late Leader"}},
+		"sitelinks":{"enwiki":{"title":"A Late Leader"}},
+		"claims":{
+			"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}],
+			"P570":[{"mainsnak":{"datavalue":{"value":{"time":"+2013-12-05T00:00:00Z","precision":11}}}}]
+		}
+	}}}`)
+	got, err := parseEntity(raw, "Q1")
+	if err != nil {
+		t.Fatalf("parseEntity: %v", err)
+	}
+	if got.DiedAt != "2013-12-05" {
+		t.Errorf("DiedAt = %q, want 2013-12-05", got.DiedAt)
+	}
+}
+
+func TestParseEntity_LivingHasNoDeathDate(t *testing.T) {
+	raw := []byte(`{"entities":{"Q1":{
+		"labels":{"en":{"value":"A Living Leader"}},
+		"sitelinks":{"enwiki":{"title":"A Living Leader"}},
+		"claims":{"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}]}
+	}}}`)
+	got, err := parseEntity(raw, "Q1")
+	if err != nil {
+		t.Fatalf("parseEntity: %v", err)
+	}
+	if got.DiedAt != "" {
+		t.Errorf("DiedAt = %q, want empty for a living subject", got.DiedAt)
+	}
+}
+
+func TestWikidataDate(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"+2013-12-05T00:00:00Z", "2013-12-05", true}, // day precision
+		{"+1881-00-00T00:00:00Z", "1881-01-01", true}, // year precision → clamp to Jan 1
+		{"+1990-06-00T00:00:00Z", "1990-06-01", true}, // month precision → clamp day
+		{"-0044-03-15T00:00:00Z", "", false},          // BCE — not handled
+		{"2013-12-05T00:00:00Z", "", false},           // missing sign
+		{"", "", false},
+	}
+	for _, c := range cases {
+		got, ok := wikidataDate(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("wikidataDate(%q) = (%q,%v), want (%q,%v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
 func TestWikiLang(t *testing.T) {
 	cases := []struct {
 		site string
@@ -170,7 +226,7 @@ type fakeWriter struct {
 type translation struct{ lang, name, desc, extract, img, url string }
 
 func (f *fakeWriter) CountSubjects(context.Context) (int, error) { return f.count, nil }
-func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _ string, _ []string) (int64, error) {
+func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _ string, _ []string, _ string) (int64, error) {
 	f.subjects++
 	return int64(f.subjects), nil
 }

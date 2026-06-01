@@ -19,12 +19,15 @@ const rating = computed(() => Math.round(props.entry.rating))
 const rd = computed(() => Math.round(props.entry.ratingDeviation || 0))
 const provisional = computed(() => rd.value > 110)
 
-// The board is sorted by the conservative rating — rating minus twice the
-// deviation — so a figure only climbs once its rating is both high AND
-// well-established (backend/internal/store/leaderboard.go). Show that exact
-// number as the headline so the value can never contradict the order; the raw
-// rating ± RD sits beneath it so nothing is hidden.
-const score = computed(() => Math.round(props.entry.rating - 2 * (props.entry.ratingDeviation || 0)))
+// The board is sorted server-side by the conservative rating — rating minus
+// twice the deviation — so a figure only climbs once its rating is both high
+// AND well-established (backend/internal/store/leaderboard.go). Derive the
+// headline from the SAME rounded rating and deviation shown beneath it, so the
+// displayed numbers always reconcile (score = rating − 2 × rd) instead of being
+// rounded independently and disagreeing by a point in the tooltip and subtitle.
+// Row order comes from the backend rank, so a sub-point rounding tie here can
+// never reorder the list.
+const score = computed(() => rating.value - 2 * rd.value)
 </script>
 
 <template>
@@ -39,6 +42,11 @@ const score = computed(() => Math.round(props.entry.rating - 2 * (props.entry.ra
 
     <span class="name-cell">
       <span class="name">{{ entry.subject.name }}</span>
+      <span
+        v-if="entry.subject.deceased"
+        class="deceased"
+        :title="entry.subject.diedYear ? `Deceased ${entry.subject.diedYear}` : 'Deceased'"
+      >✝<template v-if="entry.subject.diedYear"> {{ entry.subject.diedYear }}</template></span>
     </span>
 
     <span class="winbar">
@@ -55,3 +63,16 @@ const score = computed(() => Math.round(props.entry.rating - 2 * (props.entry.ra
     </span>
   </li>
 </template>
+
+<style scoped>
+.deceased {
+  margin-left: 0.4em;
+  padding: 0.05em 0.4em;
+  border-radius: 0.6em;
+  font-size: 0.72em;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted, #8a8f98);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+</style>

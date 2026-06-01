@@ -22,6 +22,7 @@ const expanded = ref(false)
     <div v-else class="portrait placeholder" aria-hidden="true"></div>
 
     <h2 class="name">{{ subject.name }}</h2>
+    <p v-if="subject.deceased" class="deceased-note">✝ Deceased<template v-if="subject.diedYear"> ({{ subject.diedYear }})</template></p>
     <p v-if="subject.description" class="desc">{{ subject.description }}</p>
 
     <template v-if="subject.extract">
@@ -35,3 +36,13 @@ const expanded = ref(false)
     <button class="prefer" @click="$emit('prefer', subject.id)">Prefer {{ subject.name.split(' ')[0] }}</button>
   </article>
 </template>
+
+<style scoped>
+.deceased-note {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted, #8a8f98);
+}
+</style>

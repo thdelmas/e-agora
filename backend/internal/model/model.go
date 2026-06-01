@@ -19,6 +19,7 @@ type Subject struct {
 	Losses         int
 	Comparisons    int
 	Active         bool
+	DiedAt         *time.Time // date of death (Wikidata P570); nil = living or unknown
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -101,4 +102,6 @@ type SubjectPublic struct {
 	Extract      string `json:"extract,omitempty"`
 	ImageURL     string `json:"imageUrl,omitempty"`
 	WikipediaURL string `json:"wikipediaUrl"`
+	Deceased     bool   `json:"deceased,omitempty"` // has a recorded date of death (P570)
+	DiedYear     int    `json:"diedYear,omitempty"` // year of death, for display next to the name
 }
