@@ -252,6 +252,25 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 
 .name { font-size: 1.02rem; margin: 0.5rem 0 0.1rem; font-weight: 800; line-height: 1.2; }
 .desc { color: var(--ink-soft); margin: 0.1rem 0; font-size: 0.82rem; line-height: 1.4; }
+/* The Wikipedia lead paragraph — enough to form an opinion inline. Left-aligned
+   (the card centres everything else) so the prose reads naturally; clamped to a
+   few lines on mobile with a "Show more" toggle so two stacked cards stay
+   scannable and the vote buttons don't get pushed off-screen. */
+.lead {
+  color: var(--ink); margin: 0.45rem 0 0.15rem; font-size: 0.8rem;
+  line-height: 1.5; text-align: left;
+}
+.lead.clamped {
+  display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.more {
+  align-self: flex-start; background: none; border: none; padding: 0;
+  margin: 0 0 0.1rem; cursor: pointer; font-family: inherit;
+  font-size: 0.76rem; font-weight: 700; color: var(--teal-deep);
+}
+.more:hover { text-decoration: underline; }
+.card.side-b .more { color: var(--amber-deep); }
 .wiki {
   display: inline-block; margin: 0.4rem 0 0.1rem; color: var(--teal-deep);
   font-size: 0.78rem; font-weight: 600; text-decoration: none; opacity: 0.85;
@@ -301,6 +320,8 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   .card .prefer { padding: 0.7rem 1rem; font-size: 1rem; }
   .name { font-size: 1.35rem; margin: 0.7rem 0 0.15rem; }
   .desc { font-size: 0.95rem; }
+  .lead { font-size: 0.9rem; }
+  .lead.clamped { -webkit-line-clamp: 5; line-clamp: 5; }
   .wiki { font-size: 0.85rem; margin: 0.5rem 0 0.2rem; }
   .vs {
     /* relative (not static) so the ::before/::after rings stay anchored to

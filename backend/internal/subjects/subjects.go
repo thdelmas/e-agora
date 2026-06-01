@@ -109,11 +109,11 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 		langs = []string{"en"}
 	}
 
-	enName, enDesc, enImage := name, "", ""
+	enName, enDesc, enExtract, enImage := name, "", "", ""
 	enURL := "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
 	if sum, err := s.fetch.Summary(ctx, "en", facts.EnwikiTitle); err == nil {
 		enName = firstNonEmpty(sum.Name, name)
-		enDesc, enImage = sum.Description, sum.ImageURL
+		enDesc, enExtract, enImage = sum.Description, sum.Extract, sum.ImageURL
 		if sum.WikipediaURL != "" {
 			enURL = sum.WikipediaURL
 		}
@@ -121,7 +121,7 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 
 	id, err := s.store.InsertUserSubject(ctx, store.NewSubject{
 		QID: qid, Name: name, Langs: langs,
-		EnName: enName, EnDesc: enDesc, EnImage: enImage, EnURL: enURL,
+		EnName: enName, EnDesc: enDesc, EnExtract: enExtract, EnImage: enImage, EnURL: enURL,
 	}, jti, tokenExp)
 	switch {
 	case errors.Is(err, store.ErrAlreadyExists):
@@ -134,7 +134,7 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 
 	return model.SubjectPublic{
 		ID: id, WikidataID: qid, Name: enName, Description: enDesc,
-		ImageURL: enImage, WikipediaURL: enURL,
+		Extract: enExtract, ImageURL: enImage, WikipediaURL: enURL,
 	}, nil
 }
 

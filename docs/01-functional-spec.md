@@ -63,9 +63,12 @@ The landing and default screen.
 - Project wordmark **e-agora** and a one-line tagline.
 - Prompt: **"Who do you prefer?"** (localized to the display language).
 - Two **PoliticianCards** side by side (stacked on narrow screens):
-  - image (from Wikipedia), name, one-line description, and a small
-    "Wikipedia ↗" link to the **display-language** page (opens in a new tab;
-    satisfies R2 visibly).
+  - image (from Wikipedia), name, one-line description, the Wikipedia **lead
+    paragraph** (the summary `extract`) shown inline — clamped to a few lines
+    with a *"Show more"* toggle — so a visitor can form an opinion on someone
+    they don't recognize *without leaving the page*, and a small "Wikipedia ↗"
+    link to the **display-language** page (opens in a new tab; satisfies R2
+    visibly).
 - A **language note** when the English fallback was applied (R9): a subtle
   *"Shown in English — one of these isn't available in <language>."*
 - A subtle **"Skip / show another pair"** action (no vote recorded).

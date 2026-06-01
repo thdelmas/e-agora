@@ -22,6 +22,7 @@ type NewSubject struct {
 	QID, Name      string
 	Langs          []string
 	EnName, EnDesc string
+	EnExtract      string
 	EnImage, EnURL string
 }
 
@@ -84,9 +85,9 @@ func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO subject_translations (subject_id, lang, name, description, image_url, wikipedia_url)
-		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), $5)`,
-		id, ns.EnName, ns.EnDesc, ns.EnImage, ns.EnURL); err != nil {
+		INSERT INTO subject_translations (subject_id, lang, name, description, extract, image_url, wikipedia_url)
+		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6)`,
+		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage, ns.EnURL); err != nil {
 		return 0, fmt.Errorf("insert translation: %w", err)
 	}
 

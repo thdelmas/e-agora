@@ -1,12 +1,17 @@
 <script setup>
+import { ref } from 'vue'
 // One subject in a matchup. Rating is intentionally absent so the visitor isn't
 // biased before choosing (docs/04-api.md §Resource shapes). `side` ('a' | 'b')
 // tints the card for the head-to-head vote — teal vs amber.
+// The Wikipedia lead paragraph (`extract`) is shown inline, clamped, so a visitor
+// can form an opinion on someone they don't know without leaving to read the page.
 defineProps({
   subject: { type: Object, required: true },
   side: { type: String, default: 'a' },
 })
 defineEmits(['prefer'])
+
+const expanded = ref(false)
 </script>
 
 <template>
@@ -18,6 +23,13 @@ defineEmits(['prefer'])
 
     <h2 class="name">{{ subject.name }}</h2>
     <p v-if="subject.description" class="desc">{{ subject.description }}</p>
+
+    <template v-if="subject.extract">
+      <p class="lead" :class="{ clamped: !expanded }">{{ subject.extract }}</p>
+      <button class="more" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
+        {{ expanded ? 'Show less' : 'Show more' }}
+      </button>
+    </template>
 
     <a :href="subject.wikipediaUrl" target="_blank" rel="noopener" class="wiki">Read on Wikipedia ↗</a>
     <button class="prefer" @click="$emit('prefer', subject.id)">Prefer {{ subject.name.split(' ')[0] }}</button>
