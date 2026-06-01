@@ -30,6 +30,27 @@ func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source st
 	return id, nil
 }
 
+// AllSubjectQIDs returns every subject's Wikidata QID (active or not, seed or
+// user-added), oldest first. It is the candidate set the daily sync re-fetches
+// from Wikidata to refresh metadata (name, languages, date of death).
+func (s *Store) AllSubjectQIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT wikidata_id FROM subjects ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("all subject qids: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var qid string
+		if err := rows.Scan(&qid); err != nil {
+			return nil, fmt.Errorf("scan qid: %w", err)
+		}
+		out = append(out, qid)
+	}
+	return out, rows.Err()
+}
+
 // UpsertTranslation caches per-language display content for a subject, replacing
 // any prior row for that (subject, lang). description, extract and image_url may
 // be empty (stored NULL); wikipedia_url is required (R2).

@@ -169,7 +169,8 @@ e-agora/
   ratings consistent under concurrent voters.
 - **Config** (env vars): `EAGORA_ADDR` (default `:8080`), `DATABASE_URL`
   (e.g. `postgres://eagora:eagora@localhost:5432/eagora?sslmode=disable`),
-  `EAGORA_SEED` (`auto`|`off`|`force`), `EAGORA_FALLBACK_LANG` (default `en`),
+  `EAGORA_SEED` (`auto`|`off`|`force`), `EAGORA_SYNC_INTERVAL` (Wikidata refresh
+  cadence, default `24h`, `off` to disable), `EAGORA_FALLBACK_LANG` (default `en`),
   `EAGORA_TOKEN_SECRET` (HMAC key for access tokens; **required** in prod),
   `EAGORA_ACCESS_TTL` (default `24h`), `EAGORA_ADDS_PER_TOKEN` (default `1`),
   `EAGORA_VOTE_BURST` (default `20`), `EAGORA_VOTE_RATE` (tokens/sec, default

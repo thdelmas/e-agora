@@ -16,6 +16,7 @@ import (
 // at the consumer, so the seeder is testable with a fake).
 type SubjectWriter interface {
 	CountSubjects(ctx context.Context) (int, error)
+	AllSubjectQIDs(ctx context.Context) ([]string, error)
 	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string, diedAt string) (int64, error)
 	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error
 }
@@ -24,6 +25,7 @@ type SubjectWriter interface {
 type Fetcher interface {
 	Entity(ctx context.Context, qid string) (EntityFacts, error)
 	Summary(ctx context.Context, lang, title string) (Summary, error)
+	LeaderQIDs(ctx context.Context) ([]string, error)
 }
 
 // errSkip marks a candidate as ineligible (not found / not a human / no English
@@ -110,6 +112,120 @@ func (s *Seeder) Seed(ctx context.Context, mode string) error {
 		}
 	}
 	s.Logger.Info("seed: done", "upserted", upserted, "skipped", skipped, "failed", failed, "candidates", len(items))
+	return nil
+}
+
+// ScheduleSync runs SyncOnce on a fixed cadence until ctx is cancelled (it is a
+// blocking loop — run it in a goroutine). interval ≤ 0 disables it (returns
+// immediately). The first sync fires after one interval, not at boot: startup
+// seeding already covers a fresh deploy, and re-fetching the whole pool on every
+// (possibly frequent) cold-start would be wasteful. NOTE: this is an in-process
+// timer — on a host that sleeps when idle (e.g. Render free) it only fires while
+// the instance is awake; an always-on host gets a true daily refresh.
+func ScheduleSync(ctx context.Context, w SubjectWriter, interval time.Duration, logger *slog.Logger) {
+	if interval <= 0 {
+		logger.Info("sync: disabled", "interval", interval.String())
+		return
+	}
+	logger.Info("sync: scheduled", "interval", interval.String())
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := Sync(ctx, w, logger); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("sync failed", "err", err)
+			}
+		}
+	}
+}
+
+// Sync runs a single refresh pass with production clients. main schedules it via
+// ScheduleSync; it's also the unit a future admin trigger would call.
+func Sync(ctx context.Context, w SubjectWriter, logger *slog.Logger) error {
+	return (&Seeder{
+		Fetcher: NewClient(),
+		Store:   w,
+		Logger:  logger,
+		Delay:   150 * time.Millisecond,
+	}).SyncOnce(ctx)
+}
+
+// SyncOnce re-ingests the whole pool from Wikidata/Wikipedia and discovers
+// newly-elected leaders (docs/06-wikipedia-ingestion.md §Step 5):
+//   - refresh: every subject already in the DB (seed and user-added) is re-fetched
+//     and upserted, so metadata — name, available languages, and date of death
+//     (P570, the deceased filter's signal) — tracks Wikidata over time. The upsert
+//     preserves ratings and vote history.
+//   - discover: the live UN head-of-state/government SPARQL query (§Step 1) adds
+//     any sitting leader not yet in the pool. Best-effort — a WDQS failure logs a
+//     warning and the refresh still runs.
+//
+// Both halves funnel through the same per-candidate path as seeding (seedOne), so
+// eligibility (human + English page) and translation caching behave identically.
+func (s *Seeder) SyncOnce(ctx context.Context) error {
+	existing, err := s.Store.AllSubjectQIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("sync: list subjects: %w", err)
+	}
+
+	seen := make(map[string]bool, len(existing))
+	candidates := make([]seedItem, 0, len(existing))
+	for _, qid := range existing {
+		if qid == "" || seen[qid] {
+			continue
+		}
+		seen[qid] = true
+		candidates = append(candidates, seedItem{QID: qid})
+	}
+	refreshCount := len(candidates) // everything before this index is a known subject
+
+	discovered := 0
+	if leaders, err := s.Fetcher.LeaderQIDs(ctx); err != nil {
+		s.Logger.Warn("sync: leader discovery failed, refreshing existing only", "err", err)
+	} else {
+		for _, qid := range leaders {
+			if qid == "" || seen[qid] {
+				continue
+			}
+			seen[qid] = true
+			candidates = append(candidates, seedItem{QID: qid})
+			discovered++
+		}
+	}
+	s.Logger.Info("sync: starting", "existing", refreshCount, "newly_discovered", discovered)
+
+	var refreshed, added, skipped, failed int
+	for i, it := range candidates {
+		if err := ctx.Err(); err != nil {
+			s.Logger.Warn("sync: cancelled", "completed", i, "candidates", len(candidates))
+			return err
+		}
+		isNew := i >= refreshCount
+		switch err := s.seedOne(ctx, it); {
+		case err == nil:
+			if isNew {
+				added++
+			} else {
+				refreshed++
+			}
+		case errors.Is(err, errSkip):
+			skipped++
+		default:
+			failed++
+			s.Logger.Warn("sync: subject failed", "qid", it.QID, "err", err)
+		}
+		if s.Delay > 0 {
+			select {
+			case <-time.After(s.Delay):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	s.Logger.Info("sync: done", "refreshed", refreshed, "added", added, "skipped", skipped, "failed", failed)
 	return nil
 }
 

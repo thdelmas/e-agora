@@ -26,6 +26,7 @@ type Client struct {
 	HTTP          *http.Client
 	WikidataBase  string // e.g. https://www.wikidata.org
 	WikipediaTmpl string // host template with %s for the language, e.g. https://%s.wikipedia.org
+	WDQSBase      string // Wikidata Query Service (SPARQL), e.g. https://query.wikidata.org
 }
 
 // NewClient returns a Client with sensible production defaults.
@@ -34,6 +35,7 @@ func NewClient() *Client {
 		HTTP:          &http.Client{Timeout: 20 * time.Second},
 		WikidataBase:  "https://www.wikidata.org",
 		WikipediaTmpl: "https://%s.wikipedia.org",
+		WDQSBase:      "https://query.wikidata.org",
 	}
 }
 

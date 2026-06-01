@@ -220,12 +220,14 @@ func TestFirstSentence(t *testing.T) {
 type fakeWriter struct {
 	count        int
 	subjects     int
+	qids         []string // returned by AllSubjectQIDs (the sync's existing pool)
 	translations []translation
 }
 
 type translation struct{ lang, name, desc, extract, img, url string }
 
-func (f *fakeWriter) CountSubjects(context.Context) (int, error) { return f.count, nil }
+func (f *fakeWriter) CountSubjects(context.Context) (int, error)       { return f.count, nil }
+func (f *fakeWriter) AllSubjectQIDs(context.Context) ([]string, error) { return f.qids, nil }
 func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _ string, _ []string, _ string) (int64, error) {
 	f.subjects++
 	return int64(f.subjects), nil
@@ -238,6 +240,7 @@ func (f *fakeWriter) UpsertTranslation(_ context.Context, _ int64, lang, name, d
 type fakeFetcher struct {
 	entity  func(qid string) (EntityFacts, error)
 	summary func(lang, title string) (Summary, error)
+	leaders func() ([]string, error)
 }
 
 func (f fakeFetcher) Entity(_ context.Context, qid string) (EntityFacts, error) {
@@ -245,6 +248,12 @@ func (f fakeFetcher) Entity(_ context.Context, qid string) (EntityFacts, error) 
 }
 func (f fakeFetcher) Summary(_ context.Context, lang, title string) (Summary, error) {
 	return f.summary(lang, title)
+}
+func (f fakeFetcher) LeaderQIDs(context.Context) ([]string, error) {
+	if f.leaders == nil {
+		return nil, nil
+	}
+	return f.leaders()
 }
 
 func TestSeed_OffMode(t *testing.T) {
@@ -364,6 +373,53 @@ func TestSeedOne_DegradedURLIsRealPage(t *testing.T) {
 	}
 	if len(w.translations) != 1 || w.translations[0].url != "https://en.wikipedia.org/wiki/Angela_Merkel" {
 		t.Errorf("degraded url = %+v", w.translations)
+	}
+}
+
+func TestSyncOnce_RefreshesExistingAndDiscoversNew(t *testing.T) {
+	// Two subjects already in the pool; discovery returns one duplicate (Q2) and
+	// one genuinely new leader (Q3). Expect all three upserted: Q1+Q2 refreshed,
+	// Q3 added.
+	w := &fakeWriter{qids: []string{"Q1", "Q2"}}
+	human := func(qid string) (EntityFacts, error) {
+		return EntityFacts{QID: qid, IsHuman: true, LabelEn: qid, EnwikiTitle: qid, Langs: []string{"en"}}, nil
+	}
+	s := &Seeder{
+		Store:  w,
+		Logger: discardLogger(),
+		Fetcher: fakeFetcher{
+			entity:  human,
+			summary: func(string, string) (Summary, error) { return Summary{Name: "n", WikipediaURL: "u"}, nil },
+			leaders: func() ([]string, error) { return []string{"Q2", "Q3"}, nil },
+		},
+	}
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if w.subjects != 3 {
+		t.Errorf("upserts = %d, want 3 (Q1,Q2 refreshed + Q3 discovered)", w.subjects)
+	}
+}
+
+func TestSyncOnce_DiscoveryFailureStillRefreshes(t *testing.T) {
+	// A WDQS outage must not block the refresh of the existing pool.
+	w := &fakeWriter{qids: []string{"Q1"}}
+	s := &Seeder{
+		Store:  w,
+		Logger: discardLogger(),
+		Fetcher: fakeFetcher{
+			entity: func(qid string) (EntityFacts, error) {
+				return EntityFacts{QID: qid, IsHuman: true, LabelEn: qid, EnwikiTitle: qid, Langs: []string{"en"}}, nil
+			},
+			summary: func(string, string) (Summary, error) { return Summary{Name: "n", WikipediaURL: "u"}, nil },
+			leaders: func() ([]string, error) { return nil, errors.New("wdqs unavailable") },
+		},
+	}
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if w.subjects != 1 {
+		t.Errorf("upserts = %d, want 1 (Q1 refreshed despite discovery failure)", w.subjects)
 	}
 }
 
