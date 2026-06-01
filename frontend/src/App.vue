@@ -65,7 +65,7 @@ function openLeaderboard() {
         <button class="nav-add" :class="{ locked: !me.hasAccess }" :disabled="me.hasAccess && !me.canAdd" :title="addTitle" @click="onAdd">
           {{ me.hasAccess ? '+ Add someone' : '+ Add someone 🔒' }}
         </button>
-        <button class="nav-board" :class="{ locked: !me.hasAccess }" :title="me.hasAccess ? 'World rankings' : 'Vote once to unlock the rankings'" @click="openLeaderboard">
+        <button class="nav-board" :class="{ locked: !me.hasAccess, active: me.hasAccess && route.name === 'leaderboard' }" :title="me.hasAccess ? 'World rankings' : 'Vote once to unlock the rankings'" @click="openLeaderboard">
           {{ me.hasAccess ? 'Rankings' : 'Rankings 🔒' }}
         </button>
       </nav>
