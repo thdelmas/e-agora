@@ -42,8 +42,8 @@ func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
 	visitor := lang.Pick(r.URL.Query().Get("lang"), r.Header.Get("Accept-Language"), h.cfg.FallbackLang)
 	display, fellBack := lang.Resolve(visitor, h.cfg.FallbackLang, a.AvailableLangs, b.AvailableLangs)
 
-	ta := h.localize(r.Context(), a, display)
-	tb := h.localize(r.Context(), b, display)
+	ta := h.ensureExtract(r.Context(), a, h.localize(r.Context(), a, display))
+	tb := h.ensureExtract(r.Context(), b, h.localize(r.Context(), b, display))
 	writeJSON(w, http.StatusOK, matchupResponse{
 		A:               publicOf(a, ta),
 		B:               publicOf(b, tb),
@@ -149,6 +149,22 @@ func (h *handlers) localize(ctx context.Context, subj model.Subject, displayLang
 	}
 }
 
+// ensureExtract backfills a missing lead paragraph for a subject shown in a
+// matchup. Rows seeded before extracts were stored (and lazily-cached languages)
+// have a description but no extract; this best-effort refetch fills it in the
+// language already resolved, so the card gets its inline paragraph and the row
+// is upserted for next time. Only the matchup needs this (≤2 calls, decaying to
+// zero as the pool's extracts fill); the leaderboard doesn't show extracts.
+func (h *handlers) ensureExtract(ctx context.Context, subj model.Subject, tr model.Translation) model.Translation {
+	if tr.Extract != "" || tr.Lang == "" {
+		return tr
+	}
+	if fresh, ok := h.fetchTranslation(ctx, subj, tr.Lang); ok && fresh.Extract != "" {
+		return fresh
+	}
+	return tr
+}
+
 // fetchTranslation resolves the title for displayLang, fetches the summary, and
 // caches it. Best-effort: returns ok=false on any failure (caller falls back).
 func (h *handlers) fetchTranslation(ctx context.Context, subj model.Subject, displayLang string) (model.Translation, bool) {
@@ -168,12 +184,12 @@ func (h *handlers) fetchTranslation(ctx context.Context, subj model.Subject, dis
 	if name == "" {
 		name = subj.CanonicalName
 	}
-	if err := h.store.UpsertTranslation(ctx, subj.ID, displayLang, name, sum.Description, sum.ImageURL, url); err != nil {
+	if err := h.store.UpsertTranslation(ctx, subj.ID, displayLang, name, sum.Description, sum.Extract, sum.ImageURL, url); err != nil {
 		h.logger.Warn("cache translation", "qid", subj.WikidataID, "lang", displayLang, "err", err)
 	}
 	return model.Translation{
 		SubjectID: subj.ID, Lang: displayLang, Name: name,
-		Description: sum.Description, ImageURL: sum.ImageURL, WikipediaURL: url,
+		Description: sum.Description, Extract: sum.Extract, ImageURL: sum.ImageURL, WikipediaURL: url,
 	}, true
 }
 
@@ -183,6 +199,7 @@ func publicOf(subj model.Subject, tr model.Translation) model.SubjectPublic {
 		WikidataID:   subj.WikidataID,
 		Name:         tr.Name,
 		Description:  tr.Description,
+		Extract:      tr.Extract,
 		ImageURL:     tr.ImageURL,
 		WikipediaURL: tr.WikipediaURL,
 	}

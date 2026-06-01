@@ -93,6 +93,7 @@ reused thereafter (D7).
 | `lang` | TEXT NOT NULL | Wikipedia language code (`en`, `fr`, …) |
 | `name` | TEXT NOT NULL | localized display name |
 | `description` | TEXT | localized one-liner (summary `description`/`extract`) |
+| `extract` | TEXT | the summary **lead paragraph**, shown inline on the matchup card so a visitor can form an opinion without leaving (0004); nullable until backfilled |
 | `image_url` | TEXT | thumbnail from that edition; nullable → placeholder |
 | `wikipedia_url` | TEXT NOT NULL | page URL **in this language** (R-I2) |
 | `fetched_at` | TIMESTAMPTZ NOT NULL DEFAULT now() | cache freshness |
@@ -200,6 +201,7 @@ CREATE TABLE subject_translations (
   lang          TEXT   NOT NULL,
   name          TEXT   NOT NULL,
   description   TEXT,
+  extract       TEXT,  -- lead paragraph for the card (added in 0004)
   image_url     TEXT,
   wikipedia_url TEXT   NOT NULL,
   fetched_at    TIMESTAMPTZ NOT NULL DEFAULT now(),

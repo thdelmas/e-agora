@@ -58,14 +58,16 @@ Rendered in the request's **display language** (matchup) or per-entry language
   "wikidataId": "Q567",
   "name": "Angela Merkel",
   "description": "Chancellor of Germany 2005–2021",
+  "extract": "Angela Dorothea Merkel is a German former politician who served as Chancellor of Germany from 2005 to 2021…",
   "imageUrl": "https://upload.wikimedia.org/.../Angela_Merkel.jpg",
   "wikipediaUrl": "https://de.wikipedia.org/wiki/Angela_Merkel"
 }
 ```
 
 > The matchup projection deliberately **omits `rating`/`wins`/`losses`** so the
-> visitor isn't biased before choosing. `wikipediaUrl` always points to the page
-> in the language shown (R-I2).
+> visitor isn't biased before choosing. `extract` is the Wikipedia lead paragraph
+> (shown inline on the card; omitted when not yet cached), and `wikipediaUrl`
+> always points to the page in the language shown (R-I2).
 
 ### `LeaderboardEntry`
 

@@ -17,7 +17,7 @@ import (
 type SubjectWriter interface {
 	CountSubjects(ctx context.Context) (int, error)
 	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string) (int64, error)
-	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, imageURL, wikipediaURL string) error
+	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error
 }
 
 // Fetcher is the slice of the upstream clients the seeder depends on.
@@ -148,13 +148,13 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		// Degraded: the sitelink title still yields a real page (R2 satisfied);
 		// description/image fill in on a later EAGORA_SEED=force.
 		s.Logger.Warn("seed: en summary failed, degraded translation", "qid", it.QID, "err", err)
-		return s.Store.UpsertTranslation(ctx, id, "en", name, "", "", enURL)
+		return s.Store.UpsertTranslation(ctx, id, "en", name, "", "", "", enURL)
 	}
 	url := sum.WikipediaURL
 	if url == "" {
 		url = enURL
 	}
-	return s.Store.UpsertTranslation(ctx, id, "en", firstNonEmpty(sum.Name, name), sum.Description, sum.ImageURL, url)
+	return s.Store.UpsertTranslation(ctx, id, "en", firstNonEmpty(sum.Name, name), sum.Description, sum.Extract, sum.ImageURL, url)
 }
 
 // loadSeedItems reads and dedupes (by QID) the embedded snapshots.

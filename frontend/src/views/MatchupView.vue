@@ -106,9 +106,9 @@ onUnmounted(() => {
     <p v-if="loading" class="muted">Summoning two challengers…</p>
 
     <div v-else-if="matchup" class="cards" :class="{ busy }">
-      <PoliticianCard :subject="matchup.a" side="a" @prefer="prefer" />
+      <PoliticianCard :key="matchup.a.id" :subject="matchup.a" side="a" @prefer="prefer" />
       <span class="vs" aria-hidden="true">VS</span>
-      <PoliticianCard :subject="matchup.b" side="b" @prefer="prefer" />
+      <PoliticianCard :key="matchup.b.id" :subject="matchup.b" side="b" @prefer="prefer" />
     </div>
 
     <p v-else class="muted">

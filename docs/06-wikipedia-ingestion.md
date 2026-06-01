@@ -84,6 +84,7 @@ the `(subject, 'en')` translation:
 |---------------|--------------------------|
 | `titles.normalized` / `title` | `name` |
 | `description` (fallback: `extract`) | `description` |
+| `extract` (full lead paragraph) | `extract` (shown inline on the card; nullable) |
 | `thumbnail.source` | `image_url` (nullable) |
 | `content_urls.desktop.page` | `wikipedia_url` (**mandatory**, R2) |
 
@@ -107,7 +108,7 @@ for each { qid, name }:
         canonical_name = labels.en, source='seed', available_langs=langs
         # never touch rating/wins/losses/comparisons on refresh
     en = GET summary(en, enwiki-title)
-    upsert subject_translations (subject_id, 'en') = {name, description, image_url, wikipedia_url}
+    upsert subject_translations (subject_id, 'en') = {name, description, extract, image_url, wikipedia_url}
     sleep ~150ms
 log: N enumerated, M upserted, K skipped (with reasons)
 ```

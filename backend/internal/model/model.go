@@ -29,6 +29,7 @@ type Translation struct {
 	Lang         string
 	Name         string
 	Description  string
+	Extract      string // Wikipedia lead paragraph (shown inline on the matchup card)
 	ImageURL     string
 	WikipediaURL string
 	FetchedAt    time.Time
@@ -97,6 +98,7 @@ type SubjectPublic struct {
 	WikidataID   string `json:"wikidataId"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
+	Extract      string `json:"extract,omitempty"`
 	ImageURL     string `json:"imageUrl,omitempty"`
 	WikipediaURL string `json:"wikipediaUrl"`
 }

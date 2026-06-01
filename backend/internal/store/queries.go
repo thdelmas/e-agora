@@ -68,10 +68,10 @@ func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
 func (s *Store) Translation(ctx context.Context, subjectID int64, lang string) (model.Translation, bool, error) {
 	var t model.Translation
 	err := s.pool.QueryRow(ctx, `
-		SELECT subject_id, lang, name, COALESCE(description, ''), COALESCE(image_url, ''), wikipedia_url
+		SELECT subject_id, lang, name, COALESCE(description, ''), COALESCE(extract, ''), COALESCE(image_url, ''), wikipedia_url
 		FROM subject_translations WHERE subject_id = $1 AND lang = $2`,
 		subjectID, lang,
-	).Scan(&t.SubjectID, &t.Lang, &t.Name, &t.Description, &t.ImageURL, &t.WikipediaURL)
+	).Scan(&t.SubjectID, &t.Lang, &t.Name, &t.Description, &t.Extract, &t.ImageURL, &t.WikipediaURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.Translation{}, false, nil
 	}

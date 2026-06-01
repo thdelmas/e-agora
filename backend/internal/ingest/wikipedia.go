@@ -12,6 +12,7 @@ import (
 type Summary struct {
 	Name         string // titles.normalized (fallback: title)
 	Description  string // description (fallback: first sentence of extract)
+	Extract      string // lead paragraph — enough to form an opinion on the card
 	ImageURL     string // thumbnail.source (may be empty)
 	WikipediaURL string // content_urls.desktop.page (required, R2)
 	Type         string // "standard" | "disambiguation" | …
@@ -65,6 +66,7 @@ func parseSummary(raw []byte) (Summary, error) {
 	return Summary{
 		Name:         name,
 		Description:  desc,
+		Extract:      strings.TrimSpace(d.Extract),
 		ImageURL:     d.Thumbnail.Source,
 		WikipediaURL: d.ContentURLs.Desktop.Page,
 		Type:         d.Type,

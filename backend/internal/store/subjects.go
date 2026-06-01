@@ -29,19 +29,20 @@ func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source st
 }
 
 // UpsertTranslation caches per-language display content for a subject, replacing
-// any prior row for that (subject, lang). description and image_url may be empty
-// (stored NULL); wikipedia_url is required (R2).
-func (s *Store) UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, imageURL, wikipediaURL string) error {
+// any prior row for that (subject, lang). description, extract and image_url may
+// be empty (stored NULL); wikipedia_url is required (R2).
+func (s *Store) UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO subject_translations (subject_id, lang, name, description, image_url, wikipedia_url, fetched_at)
-		VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, now())
+		INSERT INTO subject_translations (subject_id, lang, name, description, extract, image_url, wikipedia_url, fetched_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), $7, now())
 		ON CONFLICT (subject_id, lang) DO UPDATE SET
 			name          = EXCLUDED.name,
 			description   = EXCLUDED.description,
+			extract       = EXCLUDED.extract,
 			image_url     = EXCLUDED.image_url,
 			wikipedia_url = EXCLUDED.wikipedia_url,
 			fetched_at    = now()`,
-		subjectID, lang, name, description, imageURL, wikipediaURL,
+		subjectID, lang, name, description, extract, imageURL, wikipediaURL,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert translation %d/%s: %w", subjectID, lang, err)

@@ -131,6 +131,9 @@ func TestParseSummary(t *testing.T) {
 	if s.Name != "Angela Merkel" || s.Description != "Chancellor of Germany 2005–2021" {
 		t.Errorf("name/desc = %q / %q", s.Name, s.Description)
 	}
+	if s.Extract != "Angela Dorothea Merkel is a German politician." {
+		t.Errorf("extract = %q", s.Extract)
+	}
 	if s.ImageURL == "" || s.WikipediaURL == "" || s.Type != "standard" {
 		t.Errorf("missing fields: %+v", s)
 	}
@@ -164,15 +167,15 @@ type fakeWriter struct {
 	translations []translation
 }
 
-type translation struct{ lang, name, desc, img, url string }
+type translation struct{ lang, name, desc, extract, img, url string }
 
 func (f *fakeWriter) CountSubjects(context.Context) (int, error) { return f.count, nil }
 func (f *fakeWriter) UpsertSubject(_ context.Context, _, _, _ string, _ []string) (int64, error) {
 	f.subjects++
 	return int64(f.subjects), nil
 }
-func (f *fakeWriter) UpsertTranslation(_ context.Context, _ int64, lang, name, desc, img, url string) error {
-	f.translations = append(f.translations, translation{lang, name, desc, img, url})
+func (f *fakeWriter) UpsertTranslation(_ context.Context, _ int64, lang, name, desc, extract, img, url string) error {
+	f.translations = append(f.translations, translation{lang, name, desc, extract, img, url})
 	return nil
 }
 
