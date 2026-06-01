@@ -35,6 +35,15 @@ services:
       # if you'd rather seed once locally and set this to "off".
       - key: EAGORA_SEED
         value: auto
+      # Daily refresh from Wikidata: re-fetch every subject's metadata (incl.
+      # date of death, for the deceased filter) and discover newly-elected
+      # leaders. NOTE: this is an in-process timer; free instances sleep after
+      # ~15 min idle, so on the free plan it only fires when the box happens to
+      # be awake — set "off" here and refresh out-of-band (EAGORA_SEED=force on a
+      # redeploy) if you want predictable behavior, or bump to a paid always-on
+      # instance for a true daily cadence.
+      - key: EAGORA_SYNC_INTERVAL
+        value: 24h
       # Canonical absolute base URL (no trailing slash) for SEO: the <link
       # canonical>, Open Graph/Twitter tags, robots.txt and sitemap.xml all
       # resolve against it. Set it to your final public origin so search engines

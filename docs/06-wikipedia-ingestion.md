@@ -131,6 +131,35 @@ At request time, the matchup/leaderboard handler needs subject content in a
 Only languages that are actually requested are ever fetched/stored, keeping the
 translations table small.
 
+## Step 5 — Daily refresh & leader discovery (sync)
+
+Wikidata is a moving target: leaders are elected and replaced, and — relevant to
+the deceased filter (docs/05-ranking.md §Filtering the deceased) — people die.
+A background scheduler keeps the pool current, controlled by `EAGORA_SYNC_INTERVAL`
+(a Go duration, default `24h`; `off` to disable).
+
+Each pass (`ingest.SyncOnce`) does two things, both funnelling through the same
+per-candidate path as seeding (§Step 3), so eligibility and translation caching
+behave identically:
+
+1. **Refresh** every subject already in the pool (seed *and* user-added): list all
+   `wikidata_id`s, re-fetch `EntityData` + the English summary, and upsert. The
+   upsert refreshes `canonical_name`, `available_langs`, and `died_at` **without**
+   touching ratings or vote history — so a leader who has died since ingest starts
+   getting filtered automatically.
+2. **Discover** newly-elected leaders: re-run the §Step 1 SPARQL query live and
+   ingest any sitting HoS/HoG QID not already present. This is **best-effort** —
+   WDQS can be slow or rate-limited, so a failure here logs a warning and the
+   refresh still runs.
+
+> **Scheduling caveat.** The scheduler is an **in-process timer**: the first pass
+> fires one interval after boot (not at startup — a fresh deploy is already seeded,
+> and re-fetching the whole pool on every cold-start would be wasteful). On a host
+> that sleeps when idle (e.g. Render free) the timer only advances while the
+> instance is awake, so a true daily cadence needs an always-on host or an external
+> scheduler poking the process. An operator can always force an immediate full
+> refresh with `EAGORA_SEED=force` (which re-ingests the curated list).
+
 ## User-added subjects (R8)
 
 `POST /api/subjects` accepts a Wikipedia URL, a `wikidataId`, or a search-picked

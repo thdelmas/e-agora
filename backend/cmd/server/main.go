@@ -74,6 +74,11 @@ func main() {
 		}
 	}()
 
+	// Periodically refresh the pool from Wikidata/Wikipedia (metadata + dates of
+	// death) and discover newly-elected leaders, honoring EAGORA_SYNC_INTERVAL
+	// (off to disable). ScheduleSync no-ops when the interval is non-positive.
+	go ingest.ScheduleSync(rootCtx, db, cfg.SyncInterval, logger)
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           eagorahttp.NewRouter(cfg, db, logger),

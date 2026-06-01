@@ -15,6 +15,7 @@ type Config struct {
 	Addr          string        // EAGORA_ADDR
 	DatabaseURL   string        // DATABASE_URL
 	Seed          string        // EAGORA_SEED: auto|off|force
+	SyncInterval  time.Duration // EAGORA_SYNC_INTERVAL: cadence of the Wikidata refresh (off to disable)
 	FallbackLang  string        // EAGORA_FALLBACK_LANG
 	TokenSecret   string        // EAGORA_TOKEN_SECRET
 	AccessTTL     time.Duration // EAGORA_ACCESS_TTL
@@ -35,6 +36,7 @@ func Load() Config {
 		Addr:          env("EAGORA_ADDR", ":8080"),
 		DatabaseURL:   env("DATABASE_URL", "postgres://eagora:eagora@localhost:5432/eagora?sslmode=disable"),
 		Seed:          env("EAGORA_SEED", "auto"),
+		SyncInterval:  envSyncInterval("EAGORA_SYNC_INTERVAL", 24*time.Hour),
 		FallbackLang:  env("EAGORA_FALLBACK_LANG", "en"),
 		TokenSecret:   env("EAGORA_TOKEN_SECRET", ""),
 		AccessTTL:     envDuration("EAGORA_ACCESS_TTL", 24*time.Hour),
@@ -82,4 +84,26 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+// envSyncInterval parses the Wikidata-refresh cadence as a Go duration, mapping
+// "off"/"none"/"disabled" (and any zero/negative value) to 0, which disables the
+// scheduler. An unparseable value falls back to the default.
+func envSyncInterval(key string, fallback time.Duration) time.Duration {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "none", "disabled":
+		return 0
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+	if d < 0 {
+		return 0
+	}
+	return d
 }
