@@ -138,19 +138,3 @@ onUnmounted(() => observer?.disconnect())
     <AddSubjectModal v-if="showAdd" @close="showAdd = false" />
   </section>
 </template>
-
-<style scoped>
-.deceased-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  margin: 0.25rem 0 0.75rem;
-  font-size: 0.9rem;
-  color: var(--muted, #8a8f98);
-  cursor: pointer;
-  user-select: none;
-}
-.deceased-toggle input {
-  cursor: pointer;
-}
-</style>

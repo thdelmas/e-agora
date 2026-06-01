@@ -63,16 +63,3 @@ const score = computed(() => rating.value - 2 * rd.value)
     </span>
   </li>
 </template>
-
-<style scoped>
-.deceased {
-  margin-left: 0.4em;
-  padding: 0.05em 0.4em;
-  border-radius: 0.6em;
-  font-size: 0.72em;
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--muted, #8a8f98);
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-</style>
