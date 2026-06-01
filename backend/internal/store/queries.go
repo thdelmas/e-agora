@@ -20,27 +20,66 @@ var (
 )
 
 // RandomPair returns two distinct, active subjects (core fields only) for a
-// matchup, biased toward subjects with fewer comparisons so the whole pool gets
-// rated — and its rating deviation tightened — quickly (docs/05-ranking.md
-// §v1.1). This is the supply side of the Glicko-2 leaderboard: the board ranks
-// by conservative rating (rating − 2·RD), which buries a subject until its RD
-// shrinks, and RD only shrinks when the subject is shown; coverage bias is what
-// makes sure it is.
+// matchup as an **anchor + challenger** pair (docs/05-ranking.md §Matchup
+// pairing). Drawing *both* picks by coverage bias surfaced too many pairs of
+// mutual unknowns ("voting between two people we don't know about"): a vote only
+// carries signal when the visitor can actually judge it. So we draw one of each:
 //
-// We use Efraimidis–Spirakis weighted sampling without replacement: give each
-// row key = random()^(1/wᵢ) with weight wᵢ = 1/(comparisons+1), then take the
-// two largest keys. So key = random()^(comparisons+1) — an unseen subject
-// (comparisons 0) draws a plain uniform, a heavily-compared one a vanishing key.
-// With an all-zero pool this degrades to uniform random, exactly as before.
-// (Full scan + sort, like the prior ORDER BY random(); see the doc for the
-// cached-id-set / TABLESAMPLE path once the pool is large.)
+//   - anchor — weighted toward fame so the visitor recognizes at least one
+//     figure. The weight is cardinality(available_langs): the number of
+//     Wikipedia language editions the subject has, a public, non-personal
+//     popularity proxy already stored at ingest (no user profiling — privacy
+//     intact). Efraimidis–Spirakis top-1 gives P(pick = i) ∝ wᵢ, so famous
+//     figures dominate the slot while still rotating across the upper tier. No
+//     fixed "is famous" threshold to tune; it self-adjusts to the pool.
+//
+//   - challenger — the original coverage bias, weight wᵢ = 1/(comparisons+1),
+//     drawn over everyone but the anchor. This is the supply side of the
+//     Glicko-2 board (it ranks by rating − 2·RD, which buries a subject until
+//     its RD shrinks, and RD only shrinks when the subject is shown), so an
+//     unproven figure still gets its comparisons — now against a low-RD anchor,
+//     which tightens its RD faster per vote than two unknowns meeting would.
+//
+// Efraimidis–Spirakis weighted sampling without replacement assigns each row a
+// key = uⁱ^(1/wᵢ) (u ~ uniform) and takes the largest; P(pick = i) ∝ wᵢ. We
+// order by the key in **log space** — ln(key) = ln(u)/wᵢ — instead of computing
+// the key directly: power(random(), comparisons+1) underflows to a "value out of
+// range" error once a subject has a few hundred comparisons (random()^501 falls
+// below the smallest double for ~a quarter of draws), so the naive form is a
+// latency bomb for the matchup endpoint as popular subjects rack up votes. We
+// use ln(1 - random()) because 1 - random() ∈ (0, 1] is never zero (random() can
+// return 0, and ln(0) errors); it has the same distribution as u.
+//
+//   - anchor:     ln(1-random()) / cardinality(available_langs)  ⇒ wᵢ = cardinality
+//   - challenger: (comparisons + 1) * ln(1-random())             ⇒ wᵢ = 1/(comparisons+1)
+//
+// greatest(card, 1) guards the all-empty-available_langs edge. The final ORDER BY
+// random() shuffles which side the anchor lands on, so the familiar figure isn't
+// always card A. (Two full scans + sorts; fine for a small pool — see the doc for
+// the cached-id-set / TABLESAMPLE path once large.)
 //
 // Translations are fetched separately per the resolved display language.
 func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
+		WITH anchor AS (
+			SELECT id, wikidata_id, canonical_name, available_langs
+			FROM subjects WHERE active
+			ORDER BY ln(1 - random()) / greatest(cardinality(available_langs), 1) DESC
+			LIMIT 1
+		), challenger AS (
+			SELECT id, wikidata_id, canonical_name, available_langs
+			FROM subjects
+			WHERE active AND id NOT IN (SELECT id FROM anchor)
+			ORDER BY (comparisons + 1) * ln(1 - random()) DESC
+			LIMIT 1
+		)
 		SELECT id, wikidata_id, canonical_name, available_langs
-		FROM subjects WHERE active
-		ORDER BY power(random(), comparisons + 1) DESC LIMIT 2`)
+		FROM (
+			SELECT id, wikidata_id, canonical_name, available_langs FROM anchor
+			UNION ALL
+			SELECT id, wikidata_id, canonical_name, available_langs FROM challenger
+		) pair
+		ORDER BY random()`)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}
