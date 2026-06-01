@@ -85,6 +85,10 @@ onUnmounted(() => observer?.disconnect())
 
     <template v-if="entries.length">
       <p class="stat">🗳️ {{ totalVotes.toLocaleString() }} votes cast by visitors worldwide</p>
+      <p class="muted legend">
+        Ranked by the <strong>conservative rating</strong> — each figure's rating minus twice its ± uncertainty —
+        so a confident score outranks a higher but shakier one. The line beneath shows the raw rating and its ± spread.
+      </p>
       <ol class="rows">
         <LeaderboardRow v-for="entry in entries" :key="entry.subject.id" :entry="entry" />
       </ol>

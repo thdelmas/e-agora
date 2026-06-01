@@ -12,11 +12,19 @@ function pct(part, total) {
 const winPct = computed(() => pct(props.entry.wins, props.entry.comparisons))
 const medal = computed(() => ({ 1: '🥇', 2: '🥈', 3: '🥉' }[props.entry.rank] || null))
 
-// Glicko-2 rating deviation: how unsure we still are of this rating. A high RD
-// means few/erratic votes, so the rank is provisional — flag it rather than
-// pretend the number is settled. ~110 is the usual "established" cutoff.
+// Glicko-2 numbers. RD is how unsure we still are of the rating: a high RD means
+// few/erratic votes, so the rank is provisional — flag it rather than pretend the
+// number is settled. ~110 is the usual "established" cutoff.
+const rating = computed(() => Math.round(props.entry.rating))
 const rd = computed(() => Math.round(props.entry.ratingDeviation || 0))
 const provisional = computed(() => rd.value > 110)
+
+// The board is sorted by the conservative rating — rating minus twice the
+// deviation — so a figure only climbs once its rating is both high AND
+// well-established (backend/internal/store/leaderboard.go). Show that exact
+// number as the headline so the value can never contradict the order; the raw
+// rating ± RD sits beneath it so nothing is hidden.
+const score = computed(() => Math.round(props.entry.rating - 2 * (props.entry.ratingDeviation || 0)))
 </script>
 
 <template>
@@ -41,9 +49,9 @@ const provisional = computed(() => rd.value > 110)
     </span>
 
     <span class="rating" :class="{ provisional }"
-          :title="`Glicko-2 rating ${Math.round(entry.rating)} ± ${rd}${provisional ? ' · provisional (needs more votes)' : ''}`">
-      <span class="rating-val">{{ Math.round(entry.rating) }}</span>
-      <span class="rating-unit">±{{ rd }}{{ provisional ? ' ?' : '' }}</span>
+          :title="`Rank score ${score} = rating ${rating} − 2 × deviation ${rd}${provisional ? ' · provisional (needs more votes)' : ''}`">
+      <span class="rating-val">{{ score }}</span>
+      <span class="rating-unit">rating {{ rating }} ±{{ rd }}{{ provisional ? ' ?' : '' }}</span>
     </span>
   </li>
 </template>
