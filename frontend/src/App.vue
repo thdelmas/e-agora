@@ -59,6 +59,9 @@ function openLeaderboard() {
       <span class="tagline">where the people decide, one vote at a time</span>
 
       <nav class="nav">
+        <!-- The vote arena is the one destination that's never gated — it's how
+             a visitor earns access — so Vote stays a plain link with no lock. -->
+        <RouterLink to="/" class="nav-vote" title="Back to the voting arena">Vote</RouterLink>
         <RouterLink :to="me.hasAccess ? '/stats' : lockedTo" class="nav-stats" :class="{ locked: !me.hasAccess }" :title="me.hasAccess ? 'Public statistics — anonymous & open to all' : 'Vote once to unlock the stats'">
           {{ me.hasAccess ? 'Stats' : 'Stats 🔒' }}
         </RouterLink>
