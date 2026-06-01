@@ -36,13 +36,3 @@ const expanded = ref(false)
     <button class="prefer" @click="$emit('prefer', subject.id)">Prefer {{ subject.name.split(' ')[0] }}</button>
   </article>
 </template>
-
-<style scoped>
-.deceased-note {
-  margin: 0.15rem 0 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--muted, #8a8f98);
-}
-</style>
