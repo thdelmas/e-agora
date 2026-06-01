@@ -577,7 +577,10 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 .window-btn:hover { color: var(--laurel-deep); }
 .window-btn.active { background: var(--laurel); color: #fff; box-shadow: var(--shadow-sm); }
 
-.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.1rem; }
+/* One chart per row: full container width gives the daily series room to breathe
+   and scales the SVG axis labels up to a legible size (they shrink badly at
+   half-width). */
+.charts { display: grid; grid-template-columns: 1fr; gap: 1.3rem; }
 .chart-card {
   background: linear-gradient(180deg, var(--card), var(--card-2));
   border: 1px solid var(--border); border-radius: var(--radius);
