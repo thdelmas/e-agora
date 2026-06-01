@@ -517,16 +517,18 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   max-width: var(--maxw); margin-left: auto; margin-right: auto; width: 100%;
 }
 
-/* ------------------------------------------------------------ Stats (public) */
-.nav-stats {
+/* ------------------------------------------------- Nav links (Vote, Stats) */
+/* Link-style nav items share the pill look of the .nav-add/.nav-board buttons;
+   both light up with the laurel "active" mark on the page they point to. */
+.nav-stats, .nav-vote {
   text-decoration: none; display: inline-flex; align-items: center;
   background: var(--card); border: 1px solid var(--border); color: var(--ink-soft);
   padding: 0.42rem 0.8rem; font-size: 0.84rem; font-weight: 600; border-radius: 999px;
   transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
-.nav-stats:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.nav-stats:not(.locked):hover { border-color: var(--laurel); color: var(--laurel-deep); }
-.nav-stats.router-link-active { border-color: var(--laurel); color: var(--laurel-deep); }
+.nav-stats:hover, .nav-vote:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.nav-stats:not(.locked):hover, .nav-vote:hover { border-color: var(--laurel); color: var(--laurel-deep); }
+.nav-stats.router-link-active, .nav-vote.router-link-active { border-color: var(--laurel); color: var(--laurel-deep); }
 
 .stats h1 { font-size: clamp(2rem, 5vw, 2.8rem); margin: 0.5rem 0 0.3rem; font-weight: 900; letter-spacing: -0.02em; }
 .stats h1 .crown { -webkit-text-fill-color: initial; }
