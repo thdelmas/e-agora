@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client'
-import { applyVote } from '../store'
+import { applyVote, refreshMe } from '../store'
 import PoliticianCard from '../components/PoliticianCard.vue'
 import LanguageNote from '../components/LanguageNote.vue'
 import HumanityCheckModal from '../components/HumanityCheckModal.vue'
@@ -52,7 +52,11 @@ async function castVote(winnerId, loserId) {
   try {
     const res = await api.vote(winnerId, loserId)
     applyVote(res)
-    await load()
+    // applyVote unlocks access instantly, but the vote response carries no
+    // `canAdd` flag — so without this refresh the "Add someone" button stays
+    // disabled after the first vote. Pull authoritative state alongside the
+    // next matchup fetch.
+    await Promise.all([refreshMe(), load()])
   } catch (e) {
     if (e.code === 'human_check_required') {
       pendingVote.value = { winnerId, loserId }
