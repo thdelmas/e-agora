@@ -6,6 +6,7 @@ import { reactive, ref } from 'vue'
 import { api } from './api/client'
 
 const WELCOME_KEY = 'eagora_welcomed'
+const DECEASED_KEY = 'eagora_include_deceased'
 
 // Whether the visitor has seen the one-time welcome + privacy note. Kept in
 // localStorage only (never sent to the server), so a returning visitor isn't
@@ -27,6 +28,31 @@ export function acknowledgeWelcome() {
     localStorage.setItem(WELCOME_KEY, '1')
   } catch {
     // No persistence available; they'll see it again next visit. Harmless.
+  }
+}
+
+// Whether the viewer has opted to include people who have died in the rankings
+// and matchups. Default off (the living only). Persisted locally so the choice
+// holds across the leaderboard and the voting view and survives a reload — it's
+// a display preference, never sent to or stored by the server beyond the
+// per-request query flag.
+export const includeDeceased = ref(readIncludeDeceased())
+
+function readIncludeDeceased() {
+  try {
+    return localStorage.getItem(DECEASED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+// setIncludeDeceased records the viewer's deceased-filter choice.
+export function setIncludeDeceased(on) {
+  includeDeceased.value = on
+  try {
+    localStorage.setItem(DECEASED_KEY, on ? '1' : '0')
+  } catch {
+    // No persistence; the preference lasts this session only. Harmless.
   }
 }
 

@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import LeaderboardRow from '../components/LeaderboardRow.vue'
 import AccessBanner from '../components/AccessBanner.vue'
 import AddSubjectModal from '../components/AddSubjectModal.vue'
-import { me } from '../store'
+import { me, includeDeceased, setIncludeDeceased } from '../store'
 
 // The pool holds hundreds of subjects, so we page through them instead of
 // capping the view at the first 100. Each scroll to the bottom (or click of the
@@ -40,7 +40,9 @@ async function loadMore() {
   loading.value = true
   error.value = ''
   try {
-    const page = await api.leaderboard({ limit: PAGE_SIZE, offset })
+    const opts = { limit: PAGE_SIZE, offset }
+    if (includeDeceased.value) opts.includeDeceased = 'true'
+    const page = await api.leaderboard(opts)
     totalVotes.value = page.totalVotes
     for (const entry of page.entries) {
       if (seen.has(entry.subject.id)) continue
@@ -55,6 +57,18 @@ async function loadMore() {
     loading.value = false
     started.value = true
   }
+}
+
+// Toggling the deceased filter changes the whole result set, so we discard the
+// paged-in rows and the seen-id guard and reload from the top.
+function onToggleDeceased(e) {
+  setIncludeDeceased(e.target.checked)
+  entries.value = []
+  seen.clear()
+  offset = 0
+  reachedEnd.value = false
+  started.value = false
+  loadMore()
 }
 
 // Auto-load the next page as the sentinel scrolls into view; the button it sits
@@ -82,6 +96,11 @@ onUnmounted(() => observer?.disconnect())
     <AccessBanner />
     <h1><span class="crown">🏛️</span> World rankings</h1>
     <p class="muted">Forged head-to-head from the aggregated preferences of anonymous visitors.</p>
+
+    <label class="deceased-toggle">
+      <input type="checkbox" :checked="includeDeceased" @change="onToggleDeceased" />
+      Include figures who have died — rank them against the living
+    </label>
 
     <template v-if="entries.length">
       <p class="stat">🗳️ {{ totalVotes.toLocaleString() }} votes cast by visitors worldwide</p>
@@ -119,3 +138,19 @@ onUnmounted(() => observer?.disconnect())
     <AddSubjectModal v-if="showAdd" @close="showAdd = false" />
   </section>
 </template>
+
+<style scoped>
+.deceased-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted, #8a8f98);
+  cursor: pointer;
+  user-select: none;
+}
+.deceased-toggle input {
+  cursor: pointer;
+}
+</style>

@@ -24,7 +24,11 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const api = {
   me: () => request('/me'),
-  matchup: (lang) => request(`/matchup${lang ? `?lang=${encodeURIComponent(lang)}` : ''}`),
+  // opts may carry { lang, includeDeceased } — both optional query flags.
+  matchup: (opts = {}) => {
+    const p = new URLSearchParams(opts).toString()
+    return request(`/matchup${p ? `?${p}` : ''}`)
+  },
   vote: (winnerId, loserId) => request('/votes', { method: 'POST', body: { winnerId, loserId } }),
   leaderboard: (opts = {}) => {
     const p = new URLSearchParams(opts).toString()

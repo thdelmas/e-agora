@@ -6,21 +6,23 @@ import (
 )
 
 // UpsertSubject inserts a subject or, on a wikidata_id conflict, refreshes its
-// metadata (name, available languages) WITHOUT touching rating, wins, losses,
-// comparisons, active, or source — so re-seeding (EAGORA_SEED=force) never
-// resets ratings or vote history (docs/06-wikipedia-ingestion.md §Step 3).
+// metadata (name, available languages, date of death) WITHOUT touching rating,
+// wins, losses, comparisons, active, or source — so re-seeding (EAGORA_SEED=force)
+// never resets ratings or vote history (docs/06-wikipedia-ingestion.md §Step 3).
+// diedAt is a normalized YYYY-MM-DD date or "" (stored NULL → living/unknown).
 // Returns the subject's internal id.
-func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string) (int64, error) {
+func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string, diedAt string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs, died_at)
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')::date)
 		ON CONFLICT (wikidata_id) DO UPDATE SET
 			canonical_name  = EXCLUDED.canonical_name,
 			available_langs = EXCLUDED.available_langs,
+			died_at         = EXCLUDED.died_at,
 			updated_at      = now()
 		RETURNING id`,
-		qid, canonicalName, source, langs,
+		qid, canonicalName, source, langs, diedAt,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert subject %s: %w", qid, err)

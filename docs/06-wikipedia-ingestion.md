@@ -26,7 +26,7 @@ Two upstreams, both contacted **only** at seed/add time (never on the hot path):
 | Purpose | Endpoint |
 |---------|----------|
 | Enumerate UN leaders | Wikidata SPARQL: `https://query.wikidata.org/sparql?format=json&query=…` |
-| Entity facts (labels, sitelinks, `P31`) | `https://www.wikidata.org/wiki/Special:EntityData/{QID}.json` |
+| Entity facts (labels, sitelinks, `P31`, `P570`) | `https://www.wikidata.org/wiki/Special:EntityData/{QID}.json` |
 | Per-language summary (name/description/image/url) | `https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}` |
 | Add-autocomplete (search) | `https://{lang}.wikipedia.org/w/rest.php/v1/search/page?q=…` |
 
@@ -75,6 +75,7 @@ For each person QID, fetch `Special:EntityData/{QID}.json` and read:
 | `claims.P31` contains `Q5` | (validation) | **must be a human** (R8); else skip & log |
 | `labels.en.value` | `subjects.canonical_name` | default/fallback display name |
 | `sitelinks` (`*wiki` keys) | `subjects.available_langs` | `enwiki`→`en`, `frwiki`→`fr`, … (drives R9) |
+| `claims.P570` (date of death) | `subjects.died_at` | normalized `YYYY-MM-DD`; absent → living. Drives the deceased filter (docs/05-ranking.md §Filtering the deceased) |
 
 Then fetch the **English** summary
 (`https://en.wikipedia.org/api/rest_v1/page/summary/{enwiki title}`) and store
@@ -105,7 +106,7 @@ for each { qid, name }:
     langs = languages(entity.sitelinks)
     if "en" not in langs:                  log skip "no English page"; continue   # R9 fallback needs it
     upsert subjects on wikidata_id:
-        canonical_name = labels.en, source='seed', available_langs=langs
+        canonical_name = labels.en, source='seed', available_langs=langs, died_at=P570
         # never touch rating/wins/losses/comparisons on refresh
     en = GET summary(en, enwiki-title)
     upsert subject_translations (subject_id, 'en') = {name, description, extract, image_url, wikipedia_url}

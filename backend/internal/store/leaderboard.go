@@ -11,15 +11,19 @@ import (
 // conservative Glicko-2 rating (rating − 2·RD), so a subject only ranks high
 // once its rating is both strong and well-established; ties break on lower RD
 // (more evidence) then name for determinism (docs/05-ranking.md §Leaderboard
-// ordering). Full subject rows are returned (incl. rating/rd/wins/losses); the
-// handler localizes each.
-func (s *Store) TopByRating(ctx context.Context, limit, offset int) ([]model.Subject, error) {
+// ordering). The deceased (died_at IS NOT NULL) are excluded unless
+// includeDeceased is set, the viewer's opt-in to rank historical figures
+// alongside the living (docs/05-ranking.md §Filtering the deceased). Full subject
+// rows are returned (incl. rating/rd/wins/losses/died_at); the handler localizes
+// each.
+func (s *Store) TopByRating(ctx context.Context, limit, offset int, includeDeceased bool) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, wikidata_id, canonical_name, available_langs,
-		       rating, rd, wins, losses, comparisons
-		FROM subjects WHERE active
+		       rating, rd, wins, losses, comparisons, died_at
+		FROM subjects
+		WHERE active AND ($3 OR died_at IS NULL)
 		ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
-		LIMIT $1 OFFSET $2`, limit, offset)
+		LIMIT $1 OFFSET $2`, limit, offset, includeDeceased)
 	if err != nil {
 		return nil, fmt.Errorf("leaderboard: %w", err)
 	}
@@ -29,7 +33,7 @@ func (s *Store) TopByRating(ctx context.Context, limit, offset int) ([]model.Sub
 	for rows.Next() {
 		var s model.Subject
 		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.AvailableLangs,
-			&s.Rating, &s.RD, &s.Wins, &s.Losses, &s.Comparisons); err != nil {
+			&s.Rating, &s.RD, &s.Wins, &s.Losses, &s.Comparisons, &s.DiedAt); err != nil {
 			return nil, fmt.Errorf("scan leaderboard row: %w", err)
 		}
 		out = append(out, s)

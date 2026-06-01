@@ -58,28 +58,32 @@ var (
 // always card A. (Two full scans + sorts; fine for a small pool — see the doc for
 // the cached-id-set / TABLESAMPLE path once large.)
 //
-// Translations are fetched separately per the resolved display language.
-func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
+// The deceased (died_at IS NOT NULL) are kept out of the draw unless
+// includeDeceased is set — the same viewer opt-in the leaderboard honors, so the
+// pool a visitor votes on matches the ranking they see (docs/05-ranking.md
+// §Filtering the deceased). Translations are fetched separately per the resolved
+// display language.
+func (s *Store) RandomPair(ctx context.Context, includeDeceased bool) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
 		WITH anchor AS (
-			SELECT id, wikidata_id, canonical_name, available_langs
-			FROM subjects WHERE active
+			SELECT id, wikidata_id, canonical_name, available_langs, died_at
+			FROM subjects WHERE active AND ($1 OR died_at IS NULL)
 			ORDER BY ln(1 - random()) / greatest(cardinality(available_langs), 1) DESC
 			LIMIT 1
 		), challenger AS (
-			SELECT id, wikidata_id, canonical_name, available_langs
+			SELECT id, wikidata_id, canonical_name, available_langs, died_at
 			FROM subjects
-			WHERE active AND id NOT IN (SELECT id FROM anchor)
+			WHERE active AND ($1 OR died_at IS NULL) AND id NOT IN (SELECT id FROM anchor)
 			ORDER BY (comparisons + 1) * ln(1 - random()) DESC
 			LIMIT 1
 		)
-		SELECT id, wikidata_id, canonical_name, available_langs
+		SELECT id, wikidata_id, canonical_name, available_langs, died_at
 		FROM (
-			SELECT id, wikidata_id, canonical_name, available_langs FROM anchor
+			SELECT id, wikidata_id, canonical_name, available_langs, died_at FROM anchor
 			UNION ALL
-			SELECT id, wikidata_id, canonical_name, available_langs FROM challenger
+			SELECT id, wikidata_id, canonical_name, available_langs, died_at FROM challenger
 		) pair
-		ORDER BY random()`)
+		ORDER BY random()`, includeDeceased)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}
@@ -88,7 +92,7 @@ func (s *Store) RandomPair(ctx context.Context) ([]model.Subject, error) {
 	var out []model.Subject
 	for rows.Next() {
 		var s model.Subject
-		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.AvailableLangs); err != nil {
+		if err := rows.Scan(&s.ID, &s.WikidataID, &s.CanonicalName, &s.AvailableLangs, &s.DiedAt); err != nil {
 			return nil, fmt.Errorf("scan subject: %w", err)
 		}
 		out = append(out, s)

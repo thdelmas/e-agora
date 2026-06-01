@@ -74,8 +74,9 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := clampInt(r.URL.Query().Get("limit"), 100, 1, 500)
 	offset := clampInt(r.URL.Query().Get("offset"), 0, 0, 1_000_000)
+	includeDeceased := boolParam(r.URL.Query().Get("includeDeceased"))
 
-	subs, err := h.store.TopByRating(r.Context(), limit, offset)
+	subs, err := h.store.TopByRating(r.Context(), limit, offset, includeDeceased)
 	if err != nil {
 		h.logger.Error("leaderboard", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal", "Could not load the rankings.")
@@ -191,6 +192,18 @@ func (h *handlers) subjectsSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+}
+
+// boolParam parses a query flag: "1", "true" or "yes" (any case) are true; an
+// absent or any other value is false (so the deceased filter defaults to hiding
+// them).
+func boolParam(raw string) bool {
+	switch strings.ToLower(raw) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 // clampInt parses a query int, applying a default and [min,max] bounds.

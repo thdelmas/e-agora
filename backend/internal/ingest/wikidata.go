@@ -19,6 +19,7 @@ type EntityFacts struct {
 	LabelEn     string   // English label → canonical_name
 	EnwikiTitle string   // sitelink title for en.wikipedia.org (empty if none)
 	Langs       []string // Wikipedia language editions this subject has (sorted)
+	DiedAt      string   // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
 }
 
 // Entity fetches and parses the Wikidata entity for a QID via the EntityData
@@ -112,6 +113,21 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 			break
 		}
 	}
+	// P570 (date of death): its mere presence marks the subject deceased; we keep
+	// the first claim that carries a parseable Gregorian date. A "somevalue" snak
+	// (known dead, date unknown) has no datavalue and is left unflagged — rare for
+	// the documented public figures in this pool.
+	for _, claim := range ent.Claims["P570"] {
+		var v struct {
+			Time string `json:"time"`
+		}
+		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil {
+			if d, ok := wikidataDate(v.Time); ok {
+				facts.DiedAt = d
+				break
+			}
+		}
+	}
 	facts.EnwikiTitle = ent.Sitelinks["enwiki"].Title
 
 	langs := make([]string, 0, len(ent.Sitelinks))
@@ -132,6 +148,30 @@ var nonLangWikis = map[string]bool{
 	"wikidatawiki": true, "mediawikiwiki": true, "incubatorwiki": true,
 	"foundationwiki": true, "wikimaniawiki": true, "outreachwiki": true,
 	"testwiki": true, "test2wiki": true, "sourceswiki": true,
+}
+
+// wikidataDate normalizes a Wikidata time value (e.g. "+1990-05-04T00:00:00Z")
+// to a YYYY-MM-DD calendar date. Coarse-precision values zero out the month
+// and/or day ("+1990-00-00T…" for a year-only date); we clamp those to January
+// 1st so the result is a valid SQL DATE that still pins the death year. Negative
+// (BCE) and non-4-digit-year values return false — irrelevant for this pool and
+// not worth the calendar edge cases.
+func wikidataDate(t string) (string, bool) {
+	if !strings.HasPrefix(t, "+") {
+		return "", false
+	}
+	t = t[1:]
+	if len(t) < 10 || t[4] != '-' || t[7] != '-' {
+		return "", false
+	}
+	year, month, day := t[0:4], t[5:7], t[8:10]
+	if month == "00" {
+		month = "01"
+	}
+	if day == "00" {
+		day = "01"
+	}
+	return year + "-" + month + "-" + day, true
 }
 
 // wikiLang maps a Wikidata sitelink site (e.g. "enwiki") to a Wikipedia language

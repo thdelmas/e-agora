@@ -25,9 +25,13 @@ type matchupResponse struct {
 	FallbackApplied bool                `json:"fallbackApplied"`
 }
 
-// matchup returns two distinct active subjects, localized per R9.
+// matchup returns two distinct active subjects, localized per R9. By default the
+// pair is drawn from the living; ?includeDeceased opts historical figures back in
+// so a visitor can compare them against the living (docs/05-ranking.md §Filtering
+// the deceased).
 func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
-	pair, err := h.store.RandomPair(r.Context())
+	includeDeceased := boolParam(r.URL.Query().Get("includeDeceased"))
+	pair, err := h.store.RandomPair(r.Context(), includeDeceased)
 	if errors.Is(err, store.ErrPoolTooSmall) {
 		writeError(w, http.StatusConflict, "pool_too_small", "The agora is still being set up — check back soon.")
 		return
@@ -194,7 +198,7 @@ func (h *handlers) fetchTranslation(ctx context.Context, subj model.Subject, dis
 }
 
 func publicOf(subj model.Subject, tr model.Translation) model.SubjectPublic {
-	return model.SubjectPublic{
+	p := model.SubjectPublic{
 		ID:           subj.ID,
 		WikidataID:   subj.WikidataID,
 		Name:         tr.Name,
@@ -203,4 +207,9 @@ func publicOf(subj model.Subject, tr model.Translation) model.SubjectPublic {
 		ImageURL:     tr.ImageURL,
 		WikipediaURL: tr.WikipediaURL,
 	}
+	if subj.DiedAt != nil {
+		p.Deceased = true
+		p.DiedYear = subj.DiedAt.Year()
+	}
+	return p
 }

@@ -120,7 +120,7 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 	}
 
 	id, err := s.store.InsertUserSubject(ctx, store.NewSubject{
-		QID: qid, Name: name, Langs: langs,
+		QID: qid, Name: name, Langs: langs, DiedAt: facts.DiedAt,
 		EnName: enName, EnDesc: enDesc, EnExtract: enExtract, EnImage: enImage, EnURL: enURL,
 	}, jti, tokenExp)
 	switch {
@@ -135,6 +135,7 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 	return model.SubjectPublic{
 		ID: id, WikidataID: qid, Name: enName, Description: enDesc,
 		Extract: enExtract, ImageURL: enImage, WikipediaURL: enURL,
+		Deceased: facts.DiedAt != "",
 	}, nil
 }
 
