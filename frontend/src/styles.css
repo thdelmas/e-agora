@@ -622,12 +622,19 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 @media (max-width: 560px) {
   .topbar { gap: 0.5rem; }
   .nav { width: 100%; margin: 0.4rem 0 0; justify-content: flex-start; flex-wrap: wrap; }
-  .content { padding: 1.25rem 1rem 2.5rem; }
+  .content { padding: 1.25rem 0.7rem 2.5rem; }
   .row { grid-template-columns: 2rem 40px minmax(0, 1fr) auto; gap: 0.6rem; }
   .winbar { display: none; }
   .modal-backdrop { padding: 0.6rem; }
   .modal { padding: 1.25rem; }
   .modal h2 { font-size: 1.3rem; }
+  /* Give charts nearly the full screen width; the component also swaps to a
+     narrower, taller viewBox here so they read big on a phone. */
+  .charts { gap: 1rem; }
+  .chart-card { padding: 0.9rem 0.7rem 0.7rem; }
+  /* font-size is in viewBox user units; bumped so labels stay legible at the
+     phone's smaller render scale. */
+  .chart .ylabel, .chart .xlabel { font-size: 24px; }
 }
 
 /* ----------------------------------------------------- Respect motion prefs */

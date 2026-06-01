@@ -1,10 +1,10 @@
 <script setup>
 // A tiny dependency-free SVG chart for the public stats page. Renders a daily
 // series either as an area+line (cumulative-feel trends) or as bars (discrete
-// counts). It scales to its container width via the viewBox (no JS resize), and
-// is screen-reader friendly: an `aria-label` summarizes the series and each
-// point carries a native <title> tooltip.
-import { computed } from 'vue'
+// counts). It scales to its container width via the viewBox, swapping to a
+// narrower, taller box on phones (see below), and is screen-reader friendly: an
+// `aria-label` summarizes the series and each point carries a <title> tooltip.
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps({
   series: { type: Array, required: true }, // [{ date: 'YYYY-MM-DD', value: Number }]
@@ -14,25 +14,42 @@ const props = defineProps({
   unit: { type: String, default: '' },
 })
 
-// Internal drawing space; the SVG scales uniformly to the container width.
-const W = 1000
-const H = 320
-const PAD = { l: 54, r: 16, t: 18, b: 30 }
-const x0 = PAD.l
-const x1 = W - PAD.r
-const yTop = PAD.t
-const yBase = H - PAD.b
+// The drawing's internal coordinate space. On narrow screens we switch to a
+// less-wide, taller viewBox: it lets each chart fill more of the phone and —
+// since SVG text scales by (display width / viewBox width) — keeps the axis
+// labels from shrinking into illegibility on a 1000-wide box.
+const narrow = ref(false)
+let mq = null
+function syncNarrow() {
+  narrow.value = !!mq && mq.matches
+}
+onMounted(() => {
+  mq = window.matchMedia('(max-width: 560px)')
+  syncNarrow()
+  mq.addEventListener('change', syncNarrow)
+})
+onUnmounted(() => {
+  if (mq) mq.removeEventListener('change', syncNarrow)
+})
+
+const W = computed(() => (narrow.value ? 560 : 1000))
+const H = computed(() => (narrow.value ? 360 : 320))
+const PAD = computed(() => (narrow.value ? { l: 54, r: 14, t: 16, b: 30 } : { l: 54, r: 16, t: 18, b: 30 }))
+const x0 = computed(() => PAD.value.l)
+const x1 = computed(() => W.value - PAD.value.r)
+const yTop = computed(() => PAD.value.t)
+const yBase = computed(() => H.value - PAD.value.b)
 
 const n = computed(() => props.series.length)
 const values = computed(() => props.series.map((p) => p.value || 0))
 const maxVal = computed(() => Math.max(1, ...values.value))
 
 function xAt(i) {
-  if (n.value <= 1) return (x0 + x1) / 2
-  return x0 + ((x1 - x0) * i) / (n.value - 1)
+  if (n.value <= 1) return (x0.value + x1.value) / 2
+  return x0.value + ((x1.value - x0.value) * i) / (n.value - 1)
 }
 function yAt(v) {
-  return yBase - (v / maxVal.value) * (yBase - yTop)
+  return yBase.value - (v / maxVal.value) * (yBase.value - yTop.value)
 }
 
 const points = computed(() =>
@@ -45,10 +62,10 @@ const points = computed(() =>
 )
 
 // Bars geometry.
-const slot = computed(() => (x1 - x0) / Math.max(1, n.value))
+const slot = computed(() => (x1.value - x0.value) / Math.max(1, n.value))
 const barW = computed(() => Math.max(1, Math.min(38, slot.value * 0.66)))
 function barX(i) {
-  return x0 + i * slot.value + (slot.value - barW.value) / 2
+  return x0.value + i * slot.value + (slot.value - barW.value) / 2
 }
 
 // Area fill + line stroke paths.
@@ -61,9 +78,9 @@ const areaPath = computed(() => {
   const first = pts[0]
   const last = pts[pts.length - 1]
   return (
-    `M${first.x.toFixed(1)},${yBase} ` +
+    `M${first.x.toFixed(1)},${yBase.value} ` +
     pts.map((p) => `L${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') +
-    ` L${last.x.toFixed(1)},${yBase} Z`
+    ` L${last.x.toFixed(1)},${yBase.value} Z`
   )
 })
 
