@@ -115,6 +115,30 @@ inherently span every continent and so bridge the regions together.
 The default pool is a smart **For You** (recognition-weighted, global), because most
 visitors never touch the picker — so the implicit model of §2–§3 still has to be good.
 
+### The home region: a soft bias, asked once
+
+To land a visitor in the most accurate default pool without IP geolocation (§6) or
+fragmenting the rating (above), we **ask instead of infer** — a one-time onboarding
+step ("Where do you follow politics most closely?") shown alongside the welcome,
+before the agora opens. The continent it captures is the visitor's **home region**,
+and it is a **soft bias, not the strict pool filter**:
+
+- In the draw it adds a flat `region_boost` to the recognition score `R(s│v)` of every
+  subject in that continent (a new `α/β/γ`-style knob, `EAGORA_RECO_REGION`). Flat and
+  additive in log-space `R`, it lifts the *modest local* figures a visitor knows
+  (`R≈5 → ×1.5`) far more than the globally-famous (`R≈20 → ×1.1`) who don't need it.
+- It **excludes no one.** The coverage-biased discovery challenger (§3) stays
+  region-blind, so the default draw still spans every continent and the single Glicko
+  scale stays comparable. This is the whole reason it's a bias and not a `WHERE` —
+  a strict home pool would silo the graph; the strict filter remains the explicit,
+  opt-in PoolPicker selection.
+
+The onboarding chip is **pre-highlighted from the browser's volunteered language**
+(`navigator.languages`; a region subtag like `pt-BR`/`en-AU` is the strong signal,
+the bare language a weak fallback, anything global/ambiguous → "🌍 Whole world"), so
+the common path is a single confirming tap. The choice lives in `localStorage` and
+travels only as the per-request `?home=` flag — never a stored visitor profile (§6).
+
 ## 5. Levers considered but deferred
 
 - **Pageview *trend*** (7d vs 90d) — "who's in the news right now," nearly free since we

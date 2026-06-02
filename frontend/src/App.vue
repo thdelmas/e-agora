@@ -5,7 +5,7 @@ import SiteFooter from './components/SiteFooter.vue'
 import AddSubjectModal from './components/AddSubjectModal.vue'
 import HumanityCheckModal from './components/HumanityCheckModal.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
-import { me, refreshMe, welcomeSeen, acknowledgeWelcome } from './store'
+import { me, refreshMe, welcomeSeen, acknowledgeWelcome, homeRegionChosen } from './store'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,8 +29,13 @@ onMounted(refreshMe)
 // R12 — the humanity check gates entry to the agora itself, not just voting: an
 // unverified visitor meets it first and reaches nothing else until they pass.
 const needsHuman = computed(() => me.loaded && !me.humanVerified)
-// Then the one-time welcome + anonymity note, before the agora opens.
-const needsWelcome = computed(() => me.loaded && !needsHuman.value && !welcomeSeen.value)
+// Then the one-time welcome + anonymity note + home-region question, before the
+// agora opens. Also shown to returning visitors who predate the region step (seen
+// the welcome, but never chose a home region) so the default pool gets accurate
+// for them too — once chosen, neither flag re-triggers it.
+const needsWelcome = computed(
+  () => me.loaded && !needsHuman.value && (!welcomeSeen.value || !homeRegionChosen.value),
+)
 
 function onHumanVerified() {
   refreshMe()

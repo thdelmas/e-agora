@@ -9,6 +9,7 @@ const WELCOME_KEY = 'eagora_welcomed'
 const DECEASED_KEY = 'eagora_include_deceased'
 const REGION_KEY = 'eagora_pool_region'
 const FAME_KEY = 'eagora_pool_fame'
+const HOME_KEY = 'eagora_home_region'
 
 // The continents the region pool offers; '' is the whole world (no region
 // filter). Mirrors the backend's continentName buckets (docs/10 §4).
@@ -91,6 +92,80 @@ export function setPoolFameTop(on) {
   } catch {}
 }
 
+// The visitor's home region (docs/10 §4): the continent they follow most closely,
+// chosen once at onboarding. Unlike poolRegion (a *strict* filter), this is a
+// *soft* bias — the server leans the matchup draw toward this region without
+// excluding anyone, so the cross-region discovery slot still bridges the pools.
+// '' is the whole world (no lean). Never inferred from IP (docs/10 §6); persisted
+// locally and sent only as a per-request query flag.
+export const homeRegion = ref(REGIONS.includes(readLS(HOME_KEY, '')) ? readLS(HOME_KEY, '') : '')
+
+// Whether the home-region question has been answered yet. A *missing* key means
+// "never asked" → show the onboarding step; an empty string is itself a valid
+// answer ("whole world"), so emptiness of the value can't stand in for "unset".
+export const homeRegionChosen = ref(homeKeyPresent())
+
+function homeKeyPresent() {
+  try {
+    return localStorage.getItem(HOME_KEY) !== null
+  } catch {
+    return false // no storage: treat as unanswered so the step still appears
+  }
+}
+
+export function setHomeRegion(region) {
+  homeRegion.value = REGIONS.includes(region) ? region : ''
+  homeRegionChosen.value = true
+  try {
+    localStorage.setItem(HOME_KEY, homeRegion.value)
+  } catch {}
+}
+
+// suggestRegion proposes a home region from the browser's *volunteered* language
+// (navigator.languages) — never from IP (docs/10 §6) — to pre-highlight a chip in
+// the onboarding step. A region subtag is the strong signal (pt-BR → South
+// America, en-AU → Oceania); a bare language is a weak fallback; anything global
+// or ambiguous (en, es, ar) yields '' so we don't presume. The visitor always
+// confirms, so this only has to be a sensible default, not exact.
+const REGION_BY_LOCALE = {
+  'pt-br': 'South America', 'pt-pt': 'Europe',
+  'es-es': 'Europe', 'es-mx': 'North America',
+  'es-ar': 'South America', 'es-cl': 'South America', 'es-co': 'South America',
+  'es-pe': 'South America', 'es-ve': 'South America', 'es-bo': 'South America',
+  'es-ec': 'South America', 'es-py': 'South America', 'es-uy': 'South America',
+  'en-us': 'North America', 'en-ca': 'North America',
+  'en-gb': 'Europe', 'en-ie': 'Europe',
+  'en-au': 'Oceania', 'en-nz': 'Oceania',
+  'en-in': 'Asia', 'en-za': 'Africa', 'en-ng': 'Africa', 'en-ke': 'Africa',
+  'fr-ca': 'North America', 'fr-fr': 'Europe', 'fr-be': 'Europe', 'fr-ch': 'Europe',
+  'ar-eg': 'Africa', 'ar-ma': 'Africa', 'ar-dz': 'Africa', 'ar-tn': 'Africa',
+  'ar-sa': 'Asia', 'ar-ae': 'Asia', 'ar-iq': 'Asia',
+}
+const REGION_BY_LANG = {
+  de: 'Europe', it: 'Europe', nl: 'Europe', pl: 'Europe', ru: 'Europe',
+  uk: 'Europe', sv: 'Europe', tr: 'Europe', el: 'Europe', cs: 'Europe',
+  ro: 'Europe', hu: 'Europe', fi: 'Europe', da: 'Europe', no: 'Europe', fr: 'Europe',
+  zh: 'Asia', ja: 'Asia', ko: 'Asia', hi: 'Asia', fa: 'Asia', id: 'Asia',
+  vi: 'Asia', th: 'Asia', bn: 'Asia', ta: 'Asia', ur: 'Asia',
+}
+
+export function suggestRegion() {
+  let locales = []
+  try {
+    locales = navigator.languages?.length ? navigator.languages : [navigator.language]
+  } catch {
+    locales = []
+  }
+  for (const raw of locales) {
+    if (!raw) continue
+    const loc = raw.toLowerCase()
+    if (REGION_BY_LOCALE[loc]) return REGION_BY_LOCALE[loc]
+    const primary = loc.split('-')[0]
+    if (REGION_BY_LANG[primary]) return REGION_BY_LANG[primary]
+  }
+  return ''
+}
+
 // poolQuery builds the query flags for the current pool selection, omitting any
 // axis left at its default so the URL stays clean (and the server treats an
 // absent flag as "no filter").
@@ -99,6 +174,7 @@ export function poolQuery() {
   if (includeDeceased.value) q.includeDeceased = 'true'
   if (poolRegion.value) q.region = poolRegion.value
   if (poolFameTop.value) q.fameTier = 'top'
+  if (homeRegion.value) q.home = homeRegion.value
   return q
 }
 
