@@ -68,16 +68,18 @@ func main() {
 	// Seed the pool from Wikidata/Wikipedia in the background (honoring
 	// EAGORA_SEED) so the server is available immediately; a populated pool
 	// short-circuits in 'auto'.
+	pvOpts := ingest.PageviewOpts{Langs: cfg.PageviewLangs, Window: cfg.PageviewWindow}
 	go func() {
-		if err := ingest.Run(rootCtx, db, cfg.Seed, logger); err != nil && !errors.Is(err, context.Canceled) {
+		if err := ingest.Run(rootCtx, db, cfg.Seed, pvOpts, logger); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("seed failed", "err", err)
 		}
 	}()
 
 	// Periodically refresh the pool from Wikidata/Wikipedia (metadata + dates of
-	// death) and discover newly-elected leaders, honoring EAGORA_SYNC_INTERVAL
-	// (off to disable). ScheduleSync no-ops when the interval is non-positive.
-	go ingest.ScheduleSync(rootCtx, db, cfg.SyncInterval, logger)
+	// death + pageviews) and discover newly-elected leaders, honoring
+	// EAGORA_SYNC_INTERVAL (off to disable). ScheduleSync no-ops when the interval
+	// is non-positive.
+	go ingest.ScheduleSync(rootCtx, db, cfg.SyncInterval, pvOpts, logger)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

@@ -28,6 +28,23 @@ type Config struct {
 	StaticDir     string        // EAGORA_STATIC_DIR: serve the built SPA same-origin (prod)
 	CORSOrigin    string        // EAGORA_CORS_ORIGIN (dev only)
 	PublicURL     string        // EAGORA_PUBLIC_URL: canonical base URL for SEO (no trailing slash)
+
+	// Recognition & matchup pairing (docs/10-recognition-and-pools.md).
+	PageviewLangs  []string      // EAGORA_PAGEVIEW_LANGS: served languages to record pageviews for (off/empty disables)
+	PageviewWindow time.Duration // EAGORA_PAGEVIEW_WINDOW: trailing window summed per language
+	RecoBase       float64       // EAGORA_RECO_BASE: weight on sitelink count (graceful fallback when pageviews are absent)
+	RecoAlpha      float64       // EAGORA_RECO_ALPHA: weight on local attention (views in the visitor's language)
+	RecoBeta       float64       // EAGORA_RECO_BETA: weight on global fame (views across all languages)
+	RecoGamma      float64       // EAGORA_RECO_GAMMA: weight on sphere affinity (the visitor language's share of attention)
+	DiscoveryRate  float64       // EAGORA_DISCOVERY_RATE: fraction of matchups drawing a coverage-biased challenger
+	FameTierPct    float64       // EAGORA_FAME_TIER_PCT: global_views percentile cutoff for the "famous only" pool (0.7 = top 30%)
+}
+
+// defaultPageviewLangs are the ~20 largest / most-served Wikipedia editions —
+// broad coverage of the world's major language spheres without fetching all 300.
+var defaultPageviewLangs = []string{
+	"en", "es", "fr", "de", "ru", "pt", "it", "zh", "ja", "ar",
+	"nl", "pl", "fa", "tr", "id", "uk", "ko", "hi", "sv", "vi",
 }
 
 // Load reads configuration from the environment, applying documented defaults.
@@ -49,7 +66,42 @@ func Load() Config {
 		StaticDir:     env("EAGORA_STATIC_DIR", ""),
 		CORSOrigin:    env("EAGORA_CORS_ORIGIN", ""),
 		PublicURL:     strings.TrimRight(env("EAGORA_PUBLIC_URL", ""), "/"),
+
+		PageviewLangs:  envList("EAGORA_PAGEVIEW_LANGS", defaultPageviewLangs),
+		PageviewWindow: envDuration("EAGORA_PAGEVIEW_WINDOW", 90*24*time.Hour),
+		// Defaults: local attention (α) and global fame (β) pull equally hard — the
+		// two recognition levers — with a sphere boost (γ) and a small sitelink
+		// floor (base) that keeps every subject drawable and degrades to the old
+		// langs-count weighting before pageviews land. Tune against real pool data
+		// (the per-language pageview spread) once it's flowing.
+		RecoBase:  envFloat("EAGORA_RECO_BASE", 1.0),
+		RecoAlpha: envFloat("EAGORA_RECO_ALPHA", 3.0),
+		RecoBeta:  envFloat("EAGORA_RECO_BETA", 3.0),
+		RecoGamma: envFloat("EAGORA_RECO_GAMMA", 1.5),
+		DiscoveryRate: envFloat("EAGORA_DISCOVERY_RATE", 0.15),
+		FameTierPct:   envFloat("EAGORA_FAME_TIER_PCT", 0.7),
 	}
+}
+
+// envList parses a comma-separated list (e.g. "en,fr,de"), trimming and
+// lowercasing each entry and dropping empties. "off"/"none"/"disabled" (and an
+// all-empty value) return an empty slice — the caller treats that as disabled.
+func envList(key string, fallback []string) []string {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "none", "disabled":
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if p := strings.ToLower(strings.TrimSpace(part)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func env(key, fallback string) string {

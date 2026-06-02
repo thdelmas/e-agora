@@ -2,9 +2,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client'
-import { applyVote, refreshMe, includeDeceased, setIncludeDeceased } from '../store'
+import { applyVote, refreshMe, poolQuery } from '../store'
 import PoliticianCard from '../components/PoliticianCard.vue'
 import LanguageNote from '../components/LanguageNote.vue'
+import PoolPicker from '../components/PoolPicker.vue'
 import HumanityCheckModal from '../components/HumanityCheckModal.vue'
 
 const route = useRoute()
@@ -31,21 +32,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    matchup.value = await api.matchup(includeDeceased.value ? { includeDeceased: 'true' } : {})
+    matchup.value = await api.matchup(poolQuery())
   } catch (e) {
     matchup.value = null
     error.value = e.message || 'Could not load a matchup.'
   } finally {
     loading.value = false
   }
-}
-
-// Opting the deceased in (or back out) changes who can be drawn, so reload a
-// fresh pair from the newly-allowed pool. The choice is shared with the
-// leaderboard via the store.
-function onToggleDeceased(e) {
-  setIncludeDeceased(e.target.checked)
-  load()
 }
 
 function prefer(winnerId) {
@@ -138,10 +131,8 @@ onUnmounted(() => {
     <button class="ghost" :disabled="busy" @click="load">↻ Skip — show me another pair</button>
     <p class="kbd muted">Tip: <kbd>←</kbd> / <kbd>→</kbd> to choose, <kbd>S</kbd> to skip.</p>
 
-    <label class="deceased-toggle">
-      <input type="checkbox" :checked="includeDeceased" :disabled="busy" @change="onToggleDeceased" />
-      Include figures who have died — compare them against the living
-    </label>
+    <PoolPicker :disabled="busy" @change="load" />
+    <p class="pool-hint muted">Pick a region or “famous only” to compare people you’re more likely to know.</p>
 
     <transition name="fade">
       <p v-if="toast" class="toast" role="status">{{ toast }}</p>

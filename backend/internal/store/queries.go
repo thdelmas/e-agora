@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,62 +20,94 @@ var (
 	ErrInvalidMatchup = errors.New("store: invalid matchup")
 )
 
+// RecoParams are the recognition-score weights for the matchup draw
+// (docs/10-recognition-and-pools.md §2–§3). All public, non-personal — derived
+// from Wikipedia pageviews (article facts, never visitor facts).
+type RecoParams struct {
+	Base          float64 // weight on ln(1+sitelink count) — graceful fallback before pageviews land
+	Alpha         float64 // weight on ln(1+local views) — attention in the visitor's language
+	Beta          float64 // weight on ln(1+global views) — worldwide fame
+	Gamma         float64 // weight on sphere affinity — the visitor language's share of attention
+	DiscoveryRate float64 // probability the challenger is drawn by coverage bias instead of recognition
+}
+
+// Pool is the visitor-selected scope for a matchup or leaderboard
+// (docs/10-recognition-and-pools.md §4). The axes filter *which* subjects are in
+// play; ranking stays one global Glicko rating, so a pool is a view/lens, not a
+// separate board. The empty Pool is the whole living pool (the prior default).
+type Pool struct {
+	IncludeDeceased bool    // status axis: include figures who have died
+	Continent       string  // region axis: "" = any, else e.g. "Europe"
+	FameTop         bool    // fame-tier axis: restrict to the most-viewed subjects
+	FamePct         float64 // FameTop cutoff as a global_views percentile (e.g. 0.7 = top 30%)
+}
+
 // RandomPair returns two distinct, active subjects (core fields only) for a
-// matchup as an **anchor + challenger** pair (docs/05-ranking.md §Matchup
-// pairing). Drawing *both* picks by coverage bias surfaced too many pairs of
-// mutual unknowns ("voting between two people we don't know about"): a vote only
-// carries signal when the visitor can actually judge it. So we draw one of each:
+// matchup, drawn to fix the #1 complaint — "two people I've never heard of"
+// (docs/10-recognition-and-pools.md). Recognition is *local*, so the draw is
+// weighted by a **visitor-relative recognition score** R(s│v) built from
+// per-language Wikipedia pageviews, where v is the visitor's language:
 //
-//   - anchor — weighted toward fame so the visitor recognizes at least one
-//     figure. The weight is cardinality(available_langs): the number of
-//     Wikipedia language editions the subject has, a public, non-personal
-//     popularity proxy already stored at ingest (no user profiling — privacy
-//     intact). Efraimidis–Spirakis top-1 gives P(pick = i) ∝ wᵢ, so famous
-//     figures dominate the slot while still rotating across the upper tier. No
-//     fixed "is famous" threshold to tune; it self-adjusts to the pool.
+//	R(s│v) = base·ln(1+langs) + α·ln(1+local) + β·ln(1+global) + γ·share·ln(1+local)
 //
-//   - challenger — the original coverage bias, weight wᵢ = 1/(comparisons+1),
-//     drawn over everyone but the anchor. This is the supply side of the
-//     Glicko-2 board (it ranks by rating − 2·RD, which buries a subject until
-//     its RD shrinks, and RD only shrinks when the subject is shown), so an
-//     unproven figure still gets its comparisons — now against a low-RD anchor,
-//     which tightens its RD faster per vote than two unknowns meeting would.
+//   - local  = views of s in language v (0 when s has no article in v)
+//   - global = views of s across all languages (the "recognizable everywhere" lever)
+//   - share  = local/global (region proxy: a figure read mostly in v belongs to v's sphere)
+//   - langs  = cardinality(available_langs), a base term that keeps the score
+//     strictly positive and degrades to the old sitelink-count weighting when no
+//     pageview data exists yet (fresh DB, before the first sync).
+//
+// Both picks are drawn ∝ R, so the visitor recognizes both — via any lever. A
+// DiscoveryRate fraction of draws instead pick the challenger by coverage bias
+// (wᵢ = 1/(comparisons+1)) so under-compared subjects still accrue the votes that
+// shrink their Glicko RD — always against a recognizable anchor, never two
+// unknowns. The challenger always honors the pool, so an explicit region/fame
+// selection stays strict; cross-pool connectivity (needed for the single global
+// rating to stay comparable across pools, docs/10 §4) comes from the default
+// pool, whose draws inherently span every continent.
 //
 // Efraimidis–Spirakis weighted sampling without replacement assigns each row a
-// key = uⁱ^(1/wᵢ) (u ~ uniform) and takes the largest; P(pick = i) ∝ wᵢ. We
-// order by the key in **log space** — ln(key) = ln(u)/wᵢ — instead of computing
-// the key directly: power(random(), comparisons+1) underflows to a "value out of
-// range" error once a subject has a few hundred comparisons (random()^501 falls
-// below the smallest double for ~a quarter of draws), so the naive form is a
-// latency bomb for the matchup endpoint as popular subjects rack up votes. We
-// use ln(1 - random()) because 1 - random() ∈ (0, 1] is never zero (random() can
-// return 0, and ln(0) errors); it has the same distribution as u.
+// key uᵢ^(1/wᵢ) and takes the largest; P(pick = i) ∝ wᵢ. We order by the key in
+// **log space** — ln(key) = ln(1-random())/wᵢ — to avoid the underflow that
+// power(random(), …) hits once a weight grows large. 1-random() ∈ (0,1] is never
+// zero (ln(0) errors); greatest(w, 1e-9) guards a zero weight. The final ORDER BY
+// random() shuffles which side the anchor lands on.
 //
-//   - anchor:     ln(1-random()) / cardinality(available_langs)  ⇒ wᵢ = cardinality
-//   - challenger: (comparisons + 1) * ln(1-random())             ⇒ wᵢ = 1/(comparisons+1)
-//
-// greatest(card, 1) guards the all-empty-available_langs edge. The final ORDER BY
-// random() shuffles which side the anchor lands on, so the familiar figure isn't
-// always card A. (Two full scans + sorts; fine for a small pool — see the doc for
-// the cached-id-set / TABLESAMPLE path once large.)
-//
-// The deceased (died_at IS NOT NULL) are kept out of the draw unless
-// includeDeceased is set — the same viewer opt-in the leaderboard honors, so the
-// pool a visitor votes on matches the ranking they see (docs/05-ranking.md
-// §Filtering the deceased). Translations are fetched separately per the resolved
-// display language.
-func (s *Store) RandomPair(ctx context.Context, includeDeceased bool) ([]model.Subject, error) {
+// The pool scopes who is eligible (docs/10 §4): the deceased are excluded unless
+// pool.IncludeDeceased, and Continent / FameTop narrow both the anchor and the
+// challenger (strict — an explicit selection never leaks an out-of-pool figure).
+// Translations are fetched separately per the resolved display language.
+func (s *Store) RandomPair(ctx context.Context, viewerLang string, p RecoParams, pool Pool) ([]model.Subject, error) {
+	discovery := rand.Float64() < p.DiscoveryRate
 	rows, err := s.pool.Query(ctx, `
-		WITH anchor AS (
-			SELECT id, wikidata_id, canonical_name, available_langs, died_at
+		WITH cutoff AS (
+			SELECT CASE WHEN $9 THEN
+			            coalesce(percentile_cont($10) WITHIN GROUP (ORDER BY global_views), 0)
+			       ELSE 0 END AS fame_min
 			FROM subjects WHERE active AND ($1 OR died_at IS NULL)
-			ORDER BY ln(1 - random()) / greatest(cardinality(available_langs), 1) DESC
+		), scored AS (
+			SELECT s.id, s.wikidata_id, s.canonical_name, s.available_langs, s.died_at, s.comparisons,
+			       greatest(
+			           $4 * ln(1 + greatest(cardinality(s.available_langs), 1))
+			         + $5 * ln(1 + coalesce(pv.views, 0))
+			         + $6 * ln(1 + s.global_views)
+			         + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0)),
+			           1e-9) AS w,
+			       (($8 = '' OR s.continent = $8) AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
+			FROM subjects s
+			LEFT JOIN subject_pageviews pv ON pv.subject_id = s.id AND pv.lang = $3
+			WHERE s.active AND ($1 OR s.died_at IS NULL)
+		), anchor AS (
+			SELECT id, wikidata_id, canonical_name, available_langs, died_at
+			FROM scored WHERE in_pool
+			ORDER BY ln(1 - random()) / w DESC
 			LIMIT 1
 		), challenger AS (
 			SELECT id, wikidata_id, canonical_name, available_langs, died_at
-			FROM subjects
-			WHERE active AND ($1 OR died_at IS NULL) AND id NOT IN (SELECT id FROM anchor)
-			ORDER BY (comparisons + 1) * ln(1 - random()) DESC
+			FROM scored
+			WHERE id NOT IN (SELECT id FROM anchor) AND in_pool
+			ORDER BY CASE WHEN $2 THEN (comparisons + 1) * ln(1 - random())
+			              ELSE ln(1 - random()) / w END DESC
 			LIMIT 1
 		)
 		SELECT id, wikidata_id, canonical_name, available_langs, died_at
@@ -83,7 +116,9 @@ func (s *Store) RandomPair(ctx context.Context, includeDeceased bool) ([]model.S
 			UNION ALL
 			SELECT id, wikidata_id, canonical_name, available_langs, died_at FROM challenger
 		) pair
-		ORDER BY random()`, includeDeceased)
+		ORDER BY random()`,
+		pool.IncludeDeceased, discovery, viewerLang, p.Base, p.Alpha, p.Beta, p.Gamma,
+		pool.Continent, pool.FameTop, pool.FamePct)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}
