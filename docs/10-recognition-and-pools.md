@@ -91,8 +91,19 @@ generalizes it.)
 | **Office tier** | heads of state · heads of government · ministers | Wikidata P39 → small enum |
 | **Status** | in office · historical | P39 end-date / `died_at` (have it) |
 
+A figure's `continent` is a **set**, not a single label: a country can straddle a
+continental boundary (Russia → Europe + Asia, Egypt → Africa + Asia, Türkiye, …),
+and such a figure belongs in *every* continent pool it spans. Only the contiguous
+transcontinental states get multiple continents — a country's Wikidata P30 also
+names its *overseas territories'* continents (France spans Europe + Africa +
+Oceania + Antarctica), so for everyone else we keep just the primary continent.
+The region filter is therefore a containment test (`continent @> ARRAY[region]`).
+Country of citizenship (P27) resolves to the *current* one — a former, ended
+citizenship (e.g. the Soviet Union for a post-1991 Russian leader, marked by a
+P582 end-time qualifier and outranked by the preferred claim) is skipped.
+
 **Ranking stays one global Glicko rating.** Per-pool leaderboards are *filtered views*
-over that one rating column (`WHERE continent=… AND global_views≥…`) — ranking *within* a
+over that one rating column (`WHERE continent @> ARRAY[region] AND global_views≥…`) — ranking *within* a
 pool is a query filter, not a separate rating system. That validity rests on two things:
 (1) we **store the axis fields** to filter on, and (2) the global comparison graph stays
 **connected** — Glicko ratings are only comparable within a connected component, and

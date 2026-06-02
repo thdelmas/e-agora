@@ -73,6 +73,16 @@ func main() {
 		if err := ingest.Run(rootCtx, db, cfg.Seed, pvOpts, logger); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("seed failed", "err", err)
 		}
+		// Resolve region-pool geo (country/continent) for any subject still missing
+		// it — figures that predate the pools feature, which auto-seed skips on a
+		// populated pool. Without this the region pools stay empty until the daily
+		// sync runs (docs/10 §4). Skipped under EAGORA_SEED=off (no upstream calls);
+		// a no-op once every subject is resolved.
+		if cfg.Seed != "off" {
+			if err := ingest.BackfillGeo(rootCtx, db, logger); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("geo backfill failed", "err", err)
+			}
+		}
 	}()
 
 	// Periodically refresh the pool from Wikidata/Wikipedia (metadata + dates of

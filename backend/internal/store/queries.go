@@ -93,7 +93,7 @@ func (s *Store) RandomPair(ctx context.Context, viewerLang string, p RecoParams,
 			         + $6 * ln(1 + s.global_views)
 			         + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0)),
 			           1e-9) AS w,
-			       (($8 = '' OR s.continent = $8) AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
+			       (($8 = '' OR s.continent @> ARRAY[$8]) AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
 			FROM subjects s
 			LEFT JOIN subject_pageviews pv ON pv.subject_id = s.id AND pv.lang = $3
 			WHERE s.active AND ($1 OR s.died_at IS NULL)

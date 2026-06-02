@@ -28,7 +28,7 @@ func (s *Store) TopByRating(ctx context.Context, limit, offset int, pool Pool) (
 		       rating, rd, wins, losses, comparisons, died_at
 		FROM subjects
 		WHERE active AND ($3 OR died_at IS NULL)
-		  AND ($4 = '' OR continent = $4)
+		  AND ($4 = '' OR continent @> ARRAY[$4])
 		  AND global_views >= (SELECT fame_min FROM cutoff)
 		ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
 		LIMIT $1 OFFSET $2`,

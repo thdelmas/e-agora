@@ -30,20 +30,52 @@ func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source st
 	return id, nil
 }
 
-// SetSubjectGeo records a subject's country and continent (the region pool axis,
-// docs/10 §4), resolved from Wikidata at sync. Empty values store NULL (unknown →
-// the subject matches no region pool). Kept separate from UpsertSubject so the
-// geo backfill doesn't touch the rest of the upsert path.
-func (s *Store) SetSubjectGeo(ctx context.Context, subjectID int64, country, continent string) error {
+// SetSubjectGeo records a subject's country and continents (the region pool axis,
+// docs/10 §4), resolved from Wikidata at sync. continents is the set of continent
+// buckets the subject's country belongs to — usually one, two for the contiguous
+// transcontinental states (so e.g. a Russian figure matches both Europe and Asia).
+// Keyed by Wikidata QID so the startup backfill can write geo with only the QID in
+// hand (no internal id lookup). An empty country / continent set stores NULL
+// (unknown → the subject matches no region pool). Kept separate from UpsertSubject
+// so the geo backfill doesn't touch the rest of the upsert path.
+func (s *Store) SetSubjectGeo(ctx context.Context, qid, country string, continents []string) error {
+	if len(continents) == 0 {
+		continents = nil // store NULL, not an empty array, for "no region"
+	}
 	_, err := s.pool.Exec(ctx, `
-		UPDATE subjects SET country = NULLIF($2, ''), continent = NULLIF($3, ''), updated_at = now()
-		WHERE id = $1`,
-		subjectID, country, continent,
+		UPDATE subjects SET country = NULLIF($2, ''), continent = $3, updated_at = now()
+		WHERE wikidata_id = $1`,
+		qid, country, continents,
 	)
 	if err != nil {
-		return fmt.Errorf("set subject geo %d: %w", subjectID, err)
+		return fmt.Errorf("set subject geo %s: %w", qid, err)
 	}
 	return nil
+}
+
+// SubjectQIDsMissingGeo returns the QIDs of subjects with no resolved continent —
+// the work-list for the startup geo backfill (docs/10 §4). A deploy that adds the
+// pools feature to an existing pool runs migration 0007 (an empty continent
+// column) but auto-seed short-circuits a populated pool, so without a backfill the
+// region pools stay empty until the daily sync happens to run. Returns rows with
+// continent IS NULL (country may already be set but continent unresolved); the
+// genuinely unresolvable residue is small and simply re-queried each boot.
+func (s *Store) SubjectQIDsMissingGeo(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT wikidata_id FROM subjects WHERE continent IS NULL ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("subjects missing geo: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var qid string
+		if err := rows.Scan(&qid); err != nil {
+			return nil, fmt.Errorf("scan qid: %w", err)
+		}
+		out = append(out, qid)
+	}
+	return out, rows.Err()
 }
 
 // AllSubjectQIDs returns every subject's Wikidata QID (active or not, seed or
