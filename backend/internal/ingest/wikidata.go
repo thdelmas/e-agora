@@ -14,13 +14,13 @@ const instanceOfHuman = "Q5"
 
 // EntityFacts is the subset of a Wikidata entity ingestion needs.
 type EntityFacts struct {
-	QID          string
-	IsHuman      bool              // P31 contains Q5
-	LabelEn      string            // English label → canonical_name
-	EnwikiTitle  string            // sitelink title for en.wikipedia.org (empty if none)
-	Langs        []string          // Wikipedia language editions this subject has (sorted)
-	Sitelinks    map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
-	DiedAt       string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
+	QID           string
+	IsHuman       bool              // P31 contains Q5
+	LabelEn       string            // English label → canonical_name
+	EnwikiTitle   string            // sitelink title for en.wikipedia.org (empty if none)
+	Langs         []string          // Wikipedia language editions this subject has (sorted)
+	Sitelinks     map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
+	DiedAt        string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
 	CountryQID    string            // P27 country of citizenship (first claim) — the region pool axis (docs/10 §4)
 	ContinentQIDs []string          // P30 continents (every item claim, in document order) — set when the entity is a country; the caller picks the first that maps to a known bucket
 }

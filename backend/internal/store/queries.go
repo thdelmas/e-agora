@@ -48,14 +48,14 @@ type Pool struct {
 // weighted by a **visitor-relative recognition score** R(s│v) built from
 // per-language Wikipedia pageviews, where v is the visitor's language:
 //
-//	R(s│v) = base·ln(1+langs) + α·ln(1+local) + β·ln(1+global) + γ·share·ln(1+local)
+//		R(s│v) = base·ln(1+langs) + α·ln(1+local) + β·ln(1+global) + γ·share·ln(1+local)
 //
-//   - local  = views of s in language v (0 when s has no article in v)
-//   - global = views of s across all languages (the "recognizable everywhere" lever)
-//   - share  = local/global (region proxy: a figure read mostly in v belongs to v's sphere)
-//   - langs  = cardinality(available_langs), a base term that keeps the score
-//     strictly positive and degrades to the old sitelink-count weighting when no
-//     pageview data exists yet (fresh DB, before the first sync).
+//	  - local  = views of s in language v (0 when s has no article in v)
+//	  - global = views of s across all languages (the "recognizable everywhere" lever)
+//	  - share  = local/global (region proxy: a figure read mostly in v belongs to v's sphere)
+//	  - langs  = cardinality(available_langs), a base term that keeps the score
+//	    strictly positive and degrades to the old sitelink-count weighting when no
+//	    pageview data exists yet (fresh DB, before the first sync).
 //
 // Both picks are drawn ∝ R, so the visitor recognizes both — via any lever. A
 // DiscoveryRate fraction of draws instead pick the challenger by coverage bias
