@@ -194,15 +194,36 @@ func (h *handlers) subjectsSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
+// --- GET /api/countries ------------------------------------------------------
+
+// countries lists the countries with enough subjects to form a finer-grained
+// region pool (docs/10 §4), for the pool picker. Public reference data — ungated,
+// no session — so the picker populates on the (public) voting view.
+func (h *handlers) countries(w http.ResponseWriter, r *http.Request) {
+	cs, err := h.store.Countries(r.Context())
+	if err != nil {
+		h.logger.Error("countries", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal", "Could not load the country list.")
+		return
+	}
+	if cs == nil {
+		cs = []store.CountryStat{} // encode [] not null for an empty pool
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"countries": cs})
+}
+
 // poolFrom reads the visitor's pool selection (docs/10 §4) from the query — the
 // scope shared by the matchup draw and the leaderboard view: status
-// (?includeDeceased), region (?region=Europe), and fame tier (?fameTier=top).
-// An empty selection is the whole living pool (the prior default).
+// (?includeDeceased), region (?region=Europe), country (?country=France), and
+// fame tier (?fameTier=top). Region and country are the same geographic axis at
+// two zoom levels; the picker sends only one, but both compose if present. An
+// empty selection is the whole living pool (the prior default).
 func (h *handlers) poolFrom(r *http.Request) store.Pool {
 	q := r.URL.Query()
 	return store.Pool{
 		IncludeDeceased: boolParam(q.Get("includeDeceased")),
 		Continent:       strings.TrimSpace(q.Get("region")),
+		Country:         strings.TrimSpace(q.Get("country")),
 		FameTop:         strings.EqualFold(q.Get("fameTier"), "top"),
 		FamePct:         h.cfg.FameTierPct,
 	}

@@ -8,8 +8,10 @@ import { api } from './api/client'
 const WELCOME_KEY = 'eagora_welcomed'
 const DECEASED_KEY = 'eagora_include_deceased'
 const REGION_KEY = 'eagora_pool_region'
+const COUNTRY_KEY = 'eagora_pool_country'
 const FAME_KEY = 'eagora_pool_fame'
 const HOME_KEY = 'eagora_home_region'
+const HOME_COUNTRY_KEY = 'eagora_home_country'
 
 // The continents the region pool offers; '' is the whole world (no region
 // filter). Mirrors the backend's continentName buckets (docs/10 §4).
@@ -89,6 +91,70 @@ export function setPoolFameTop(on) {
   poolFameTop.value = !!on
   try {
     localStorage.setItem(FAME_KEY, on ? '1' : '0')
+  } catch {}
+}
+
+// The finer geographic scope (docs/10 §4): a single country — the same axis as
+// poolRegion at a sharper zoom, so the picker offers one *or* the other (choosing
+// a country clears the region and vice versa). The value is the country's English
+// label, exactly what the server stores and filters on. Persisted locally and
+// sent only as a per-request query flag, like the rest of the pool.
+export const poolCountry = ref(readLS(COUNTRY_KEY, ''))
+
+export function setPoolCountry(country) {
+  poolCountry.value = country || ''
+  try {
+    localStorage.setItem(COUNTRY_KEY, poolCountry.value)
+  } catch {}
+}
+
+// suggestCountry proposes a soft home *country* from the region subtag of the
+// browser's volunteered locale (fr-FR → France) — never IP (docs/10 §6). The
+// value is the Wikidata English label the backend stores, so an exact match
+// leans the draw toward that country; an unmapped locale (or a label not in the
+// pool) just yields no lean and the continent suggestion still applies. The map
+// is small and best-effort — the visitor can always pick a country explicitly.
+const COUNTRY_BY_CC = {
+  FR: 'France', BE: 'Belgium', CH: 'Switzerland', DE: 'Germany', AT: 'Austria',
+  ES: 'Spain', IT: 'Italy', PT: 'Portugal', NL: 'Netherlands', IE: 'Ireland',
+  PL: 'Poland', SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', GR: 'Greece',
+  GB: 'United Kingdom', US: 'United States of America', CA: 'Canada',
+  AU: 'Australia', NZ: 'New Zealand',
+  BR: 'Brazil', MX: 'Mexico', AR: 'Argentina', CL: 'Chile', CO: 'Colombia', PE: 'Peru',
+  IN: 'India', JP: 'Japan',
+}
+
+export function suggestCountry() {
+  let locales = []
+  try {
+    locales = navigator.languages?.length ? navigator.languages : [navigator.language]
+  } catch {
+    locales = []
+  }
+  for (const raw of locales) {
+    if (!raw) continue
+    const cc = raw.split('-')[1]?.toUpperCase()
+    if (cc && COUNTRY_BY_CC[cc]) return COUNTRY_BY_CC[cc]
+  }
+  return ''
+}
+
+// The visitor's home country (docs/10 §4): a *soft* draw lean toward their own
+// country, finer than homeRegion and likewise non-excluding (unlike the strict
+// poolCountry). Seeded from the locale when never set, so the silent majority who
+// never open the picker still get a local-leaning draw; '' means no lean. Never
+// inferred from IP; persisted locally and sent only as a per-request query flag.
+export const homeCountry = ref(readHomeCountry())
+
+function readHomeCountry() {
+  const stored = readLS(HOME_COUNTRY_KEY, null)
+  return stored !== null ? stored : suggestCountry()
+}
+
+export function setHomeCountry(country) {
+  homeCountry.value = country || ''
+  try {
+    localStorage.setItem(HOME_COUNTRY_KEY, homeCountry.value)
   } catch {}
 }
 
@@ -173,8 +239,10 @@ export function poolQuery() {
   const q = {}
   if (includeDeceased.value) q.includeDeceased = 'true'
   if (poolRegion.value) q.region = poolRegion.value
+  if (poolCountry.value) q.country = poolCountry.value
   if (poolFameTop.value) q.fameTier = 'top'
   if (homeRegion.value) q.home = homeRegion.value
+  if (homeCountry.value) q.homeCountry = homeCountry.value
   return q
 }
 

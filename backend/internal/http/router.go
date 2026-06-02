@@ -49,7 +49,8 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", h.healthz)
-		r.Get("/stats", h.stats) // public transparency dashboard (ungated, no session)
+		r.Get("/stats", h.stats)         // public transparency dashboard (ungated, no session)
+		r.Get("/countries", h.countries) // public reference data for the pool picker (ungated)
 
 		// Routes needing an anonymous session.
 		r.Group(func(r chi.Router) {

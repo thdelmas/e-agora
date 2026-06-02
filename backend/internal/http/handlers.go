@@ -40,14 +40,16 @@ func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
 		Beta:          h.cfg.RecoBeta,
 		Gamma:         h.cfg.RecoGamma,
 		Region:        h.cfg.RecoRegion,
+		Country:       h.cfg.RecoCountry,
 		DiscoveryRate: h.cfg.DiscoveryRate,
 	}
-	// The home region (docs/10 §4) is a *soft* draw bias — the visitor's
-	// onboarding-chosen continent, leaning the recognition draw toward figures
+	// The home region/country (docs/10 §4) are *soft* draw biases — the visitor's
+	// home continent and country, leaning the recognition draw toward figures
 	// they're likeliest to know without filtering anyone out. Distinct from the
-	// PoolPicker's strict ?region (poolFrom); an empty value just adds no bias.
+	// PoolPicker's strict ?region/?country (poolFrom); empty values add no bias.
 	home := strings.TrimSpace(r.URL.Query().Get("home"))
-	pair, err := h.store.RandomPair(r.Context(), visitor, home, reco, h.poolFrom(r))
+	homeCountry := strings.TrimSpace(r.URL.Query().Get("homeCountry"))
+	pair, err := h.store.RandomPair(r.Context(), visitor, home, homeCountry, reco, h.poolFrom(r))
 	if errors.Is(err, store.ErrPoolTooSmall) {
 		writeError(w, http.StatusConflict, "pool_too_small", "The agora is still being set up — check back soon.")
 		return

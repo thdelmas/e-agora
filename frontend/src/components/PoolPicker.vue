@@ -1,25 +1,56 @@
 <script setup>
-// The visitor's pool selector (docs/10 §4): region, fame tier and the
+// The visitor's pool selector (docs/10 §4): geographic scope, fame tier and the
 // living/deceased status. It writes the shared store and emits `change` so the
 // host view reloads the matchup or leaderboard from the newly-scoped pool. The
 // ranking itself is one global scale — these only filter which figures are drawn.
+import { ref, computed, onMounted } from 'vue'
 import {
   REGIONS,
   poolRegion,
+  poolCountry,
   poolFameTop,
   includeDeceased,
   setPoolRegion,
+  setPoolCountry,
   setPoolFameTop,
   setIncludeDeceased,
 } from '../store'
+import { api } from '../api/client'
 
 const emit = defineEmits(['change'])
 defineProps({ disabled: { type: Boolean, default: false } })
 
-const regionLabel = (r) => r || '🌍 Whole world'
+// Continents are a fixed list; countries are whichever ones have enough subjects
+// to draw from (loaded once). Geographic scope is one axis at two zoom levels, so
+// the picker is a single select: a country value wins over a continent when set.
+const continents = REGIONS.filter((r) => r)
+const countries = ref([])
+const scope = computed(() => poolCountry.value || poolRegion.value || '')
 
-function onRegion(e) {
-  setPoolRegion(e.target.value)
+onMounted(async () => {
+  try {
+    const res = await api.countries()
+    countries.value = res.countries || []
+  } catch {
+    countries.value = [] // reference data only; the continent scopes still work
+  }
+})
+
+// One handler for the whole geographic axis: a known continent sets the region
+// (clearing any country); anything else is a country (clearing the region); the
+// empty value is the whole world. Choosing one zoom level always clears the other.
+function onScope(e) {
+  const val = e.target.value
+  if (!val) {
+    setPoolRegion('')
+    setPoolCountry('')
+  } else if (REGIONS.includes(val)) {
+    setPoolRegion(val)
+    setPoolCountry('')
+  } else {
+    setPoolCountry(val)
+    setPoolRegion('')
+  }
   emit('change')
 }
 function onFame(e) {
@@ -35,9 +66,17 @@ function onDeceased(e) {
 <template>
   <div class="pool-picker" role="group" aria-label="Choose who to compare">
     <label class="pool-field">
-      <span class="pool-label">Region</span>
-      <select :value="poolRegion" :disabled="disabled" @change="onRegion">
-        <option v-for="r in REGIONS" :key="r" :value="r">{{ regionLabel(r) }}</option>
+      <span class="pool-label">Scope</span>
+      <select :value="scope" :disabled="disabled" @change="onScope">
+        <option value="">🌍 Whole world</option>
+        <optgroup label="Continents">
+          <option v-for="r in continents" :key="r" :value="r">{{ r }}</option>
+        </optgroup>
+        <optgroup v-if="countries.length" label="Countries">
+          <option v-for="c in countries" :key="c.name" :value="c.name">
+            {{ c.name }} ({{ c.count }})
+          </option>
+        </optgroup>
       </select>
     </label>
 
