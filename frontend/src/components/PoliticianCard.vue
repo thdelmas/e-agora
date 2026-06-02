@@ -32,7 +32,12 @@ const expanded = ref(false)
       </button>
     </template>
 
-    <a :href="subject.wikipediaUrl" target="_blank" rel="noopener" class="wiki">Read on Wikipedia ↗</a>
+    <a :href="subject.wikipediaUrl" target="_blank" rel="noopener" class="wiki"
+       :aria-label="`Read about ${subject.name} on Wikipedia (opens in a new tab)`">
+      <span class="wiki-mark" aria-hidden="true">W</span>
+      <span class="wiki-label">Read on Wikipedia</span>
+      <span class="wiki-arrow" aria-hidden="true">↗</span>
+    </a>
     <button class="prefer" @click="$emit('prefer', subject.id)">Prefer {{ subject.name.split(' ')[0] }}</button>
   </article>
 </template>

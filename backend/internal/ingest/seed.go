@@ -21,7 +21,8 @@ type SubjectWriter interface {
 	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error
 	UpsertPageviews(ctx context.Context, subjectID int64, lang string, views int64) error
 	RefreshGlobalViews(ctx context.Context) error
-	SetSubjectGeo(ctx context.Context, subjectID int64, country, continent string) error
+	SetSubjectGeo(ctx context.Context, qid, country string, continents []string) error
+	SubjectQIDsMissingGeo(ctx context.Context) ([]string, error)
 }
 
 // Fetcher is the slice of the upstream clients the seeder depends on.
@@ -175,6 +176,77 @@ func Sync(ctx context.Context, w SubjectWriter, pv PageviewOpts, logger *slog.Lo
 	}).SyncOnce(ctx)
 }
 
+// BackfillGeo builds a production seeder and resolves region-pool geo
+// (country/continent) for any subject still missing it. main runs it once at
+// startup, after seeding, so a deploy that adds the pools feature to an existing
+// pool populates the region pools immediately instead of waiting on the daily
+// sync (docs/10 §4). Cheap on a healthy pool: a fully-resolved DB yields an empty
+// work-list and zero upstream calls.
+func BackfillGeo(ctx context.Context, w SubjectWriter, logger *slog.Logger) error {
+	return (&Seeder{
+		Fetcher: NewClient(),
+		Store:   w,
+		Logger:  logger,
+		Delay:   150 * time.Millisecond,
+	}).BackfillGeo(ctx)
+}
+
+// BackfillGeo resolves and stores country/continent for subjects whose continent
+// is still NULL (docs/10 §4) — the figures that predate the pools feature, for
+// which seedOne never ran. It re-fetches only those subjects (one Wikidata entity
+// each, with the country lookup cached per pass), so it's far lighter than a full
+// SyncOnce and self-heals existing deployments without a manual re-seed. The
+// per-subject failure mode matches seeding: a transient error is logged and the
+// pass continues; a subject with no resolvable country simply stays unscoped.
+func (s *Seeder) BackfillGeo(ctx context.Context) error {
+	qids, err := s.Store.SubjectQIDsMissingGeo(ctx)
+	if err != nil {
+		return fmt.Errorf("backfill geo: list subjects: %w", err)
+	}
+	if len(qids) == 0 {
+		s.Logger.Info("backfill geo: nothing to resolve")
+		return nil
+	}
+	s.Logger.Info("backfill geo: starting", "subjects", len(qids))
+
+	var resolved, unscoped, failed int
+	for i, qid := range qids {
+		if err := ctx.Err(); err != nil {
+			s.Logger.Warn("backfill geo: cancelled", "completed", i, "subjects", len(qids))
+			return err
+		}
+		facts, err := s.Fetcher.Entity(ctx, qid)
+		if err != nil {
+			failed++
+			s.Logger.Warn("backfill geo: entity failed", "qid", qid, "err", err)
+			continue
+		}
+		var info countryInfo
+		if facts.CountryQID != "" {
+			info = s.resolveCountry(ctx, facts.CountryQID)
+		}
+		if info.label == "" && len(info.continents) == 0 {
+			unscoped++ // no resolvable country/continent — leave NULL
+			continue
+		}
+		if err := s.Store.SetSubjectGeo(ctx, qid, info.label, info.continents); err != nil {
+			failed++
+			s.Logger.Warn("backfill geo: set geo failed", "qid", qid, "err", err)
+			continue
+		}
+		resolved++
+		if s.Delay > 0 {
+			select {
+			case <-time.After(s.Delay):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	s.Logger.Info("backfill geo: done", "resolved", resolved, "unscoped", unscoped, "failed", failed)
+	return nil
+}
+
 // SyncOnce re-ingests the whole pool from Wikidata/Wikipedia and discovers
 // newly-elected leaders (docs/06-wikipedia-ingestion.md §Step 5):
 //   - refresh: every subject already in the DB (seed and user-added) is re-fetched
@@ -299,8 +371,8 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 	// Region pool axis (docs/10 §4): resolve the subject's country (P27) to a
 	// country label + continent, best-effort (a failure leaves geo NULL).
 	if facts.CountryQID != "" {
-		if info := s.resolveCountry(ctx, facts.CountryQID); info.label != "" || info.continent != "" {
-			if err := s.Store.SetSubjectGeo(ctx, id, info.label, info.continent); err != nil {
+		if info := s.resolveCountry(ctx, facts.CountryQID); info.label != "" || len(info.continents) > 0 {
+			if err := s.Store.SetSubjectGeo(ctx, it.QID, info.label, info.continents); err != nil {
 				s.Logger.Warn("seed: set geo failed", "qid", it.QID, "err", err)
 			}
 		}

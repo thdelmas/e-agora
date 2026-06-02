@@ -14,15 +14,15 @@ const instanceOfHuman = "Q5"
 
 // EntityFacts is the subset of a Wikidata entity ingestion needs.
 type EntityFacts struct {
-	QID          string
-	IsHuman      bool              // P31 contains Q5
-	LabelEn      string            // English label → canonical_name
-	EnwikiTitle  string            // sitelink title for en.wikipedia.org (empty if none)
-	Langs        []string          // Wikipedia language editions this subject has (sorted)
-	Sitelinks    map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
-	DiedAt       string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
-	CountryQID   string            // P27 country of citizenship (first claim) — the region pool axis (docs/10 §4)
-	ContinentQID string            // P30 continent (first claim) — set when the entity is a country, mapped to a name
+	QID           string
+	IsHuman       bool              // P31 contains Q5
+	LabelEn       string            // English label → canonical_name
+	EnwikiTitle   string            // sitelink title for en.wikipedia.org (empty if none)
+	Langs         []string          // Wikipedia language editions this subject has (sorted)
+	Sitelinks     map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
+	DiedAt        string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
+	CountryQID    string            // P27 country of citizenship (first claim) — the region pool axis (docs/10 §4)
+	ContinentQIDs []string          // P30 continents (every item claim, in document order) — set when the entity is a country; the caller picks the first that maps to a known bucket
 }
 
 // Entity fetches and parses the Wikidata entity for a QID via the EntityData
@@ -82,6 +82,11 @@ type entityDoc struct {
 					Value json.RawMessage `json:"value"`
 				} `json:"datavalue"`
 			} `json:"mainsnak"`
+			// rank distinguishes Wikidata's preferred/normal/deprecated claims;
+			// qualifiers carry per-claim facts like P582 (end time), which marks a
+			// former country of citizenship (docs/06). Both drive P27 selection.
+			Rank       string                       `json:"rank"`
+			Qualifiers map[string][]json.RawMessage `json:"qualifiers"`
 		} `json:"claims"`
 	} `json:"entities"`
 }
@@ -133,23 +138,52 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 	}
 	// P27 (country of citizenship) drives the region pool; P30 (continent) is read
 	// when this entity *is* a country, so resolving a person's country yields its
-	// continent in the same fetch. Both take the first item-valued claim.
+	// continent in the same fetch.
+	//
+	// P27 picks the *current* citizenship: a leader can carry a former one too — a
+	// post-1991 Russian's P27 lists the Soviet Union (rank normal, P582 end-time)
+	// alongside Russia (rank preferred, no end). We skip deprecated claims and any
+	// with a P582 end-time qualifier, then prefer the "preferred"-rank claim,
+	// falling back to the first normal one — otherwise document order alone would
+	// resolve such figures to the defunct predecessor state.
+	var firstNormalP27 string
 	for _, claim := range ent.Claims["P27"] {
+		if claim.Rank == "deprecated" || len(claim.Qualifiers["P582"]) > 0 {
+			continue // deprecated or a former (ended) citizenship
+		}
 		var v struct {
 			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID != "" {
+		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err != nil || v.ID == "" {
+			continue
+		}
+		if claim.Rank == "preferred" {
 			facts.CountryQID = v.ID
 			break
 		}
+		if firstNormalP27 == "" {
+			firstNormalP27 = v.ID
+		}
 	}
+	if facts.CountryQID == "" {
+		facts.CountryQID = firstNormalP27
+	}
+	// continent keeps *all* non-deprecated claims (in document order) because a
+	// country can list several — overseas-territory continents, or distinct
+	// Wikidata QIDs for the same continent (e.g. Australia's P30 is Oceania +
+	// "Australian continent", never the "Insular Oceania" QID the islands use).
+	// resolveCountry picks the first that maps to a known bucket (or, for the
+	// transcontinental states, every mapped one), so a stray non-primary claim
+	// listed first doesn't mislabel the country.
 	for _, claim := range ent.Claims["P30"] {
+		if claim.Rank == "deprecated" {
+			continue
+		}
 		var v struct {
 			ID string `json:"id"`
 		}
 		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID != "" {
-			facts.ContinentQID = v.ID
-			break
+			facts.ContinentQIDs = append(facts.ContinentQIDs, v.ID)
 		}
 	}
 

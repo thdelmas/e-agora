@@ -74,10 +74,10 @@ func Load() Config {
 		// floor (base) that keeps every subject drawable and degrades to the old
 		// langs-count weighting before pageviews land. Tune against real pool data
 		// (the per-language pageview spread) once it's flowing.
-		RecoBase:  envFloat("EAGORA_RECO_BASE", 1.0),
-		RecoAlpha: envFloat("EAGORA_RECO_ALPHA", 3.0),
-		RecoBeta:  envFloat("EAGORA_RECO_BETA", 3.0),
-		RecoGamma: envFloat("EAGORA_RECO_GAMMA", 1.5),
+		RecoBase:      envFloat("EAGORA_RECO_BASE", 1.0),
+		RecoAlpha:     envFloat("EAGORA_RECO_ALPHA", 3.0),
+		RecoBeta:      envFloat("EAGORA_RECO_BETA", 3.0),
+		RecoGamma:     envFloat("EAGORA_RECO_GAMMA", 1.5),
 		DiscoveryRate: envFloat("EAGORA_DISCOVERY_RATE", 0.15),
 		FameTierPct:   envFloat("EAGORA_FAME_TIER_PCT", 0.7),
 	}
