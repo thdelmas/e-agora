@@ -281,11 +281,34 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
 }
 .more:hover { text-decoration: underline; }
 .card.side-b .more { color: var(--amber-deep); }
+/* "Read on Wikipedia" — a clear, tappable secondary action rather than a faint
+   text link. A bordered pill, tinted to the card's side (teal A / amber B),
+   carrying the recognisable Wikipedia "W" badge and an open-in-new-tab arrow.
+   margin-top:auto groups it with the Prefer CTA at the card foot, so both line
+   up across cards with uneven bios. */
 .wiki {
-  display: inline-block; margin: 0.4rem 0 0.1rem; color: var(--teal-deep);
-  font-size: 0.78rem; font-weight: 600; text-decoration: none; opacity: 0.85;
+  margin-top: auto; align-self: center;
+  display: inline-flex; align-items: center; gap: 0.4rem; line-height: 1;
+  margin-bottom: 0.5rem; padding: 0.42rem 0.85rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card);
+  color: var(--teal-deep); font-size: 0.78rem; font-weight: 700; text-decoration: none;
+  transition: border-color 0.16s, background 0.16s, transform 0.12s, box-shadow 0.16s;
 }
-.wiki:hover { opacity: 1; text-decoration: underline; }
+.wiki-mark {
+  display: grid; place-items: center; width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-family: var(--font-display); font-weight: 900; font-size: 0.72rem; line-height: 1;
+}
+.wiki-arrow { font-size: 0.95em; opacity: 0.6; transition: opacity 0.16s, transform 0.16s; }
+.wiki:hover {
+  border-color: var(--teal); background: rgba(15, 157, 142, 0.08);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 157, 142, 0.18);
+}
+.wiki:hover .wiki-arrow { opacity: 1; transform: translate(1px, -1px); }
+.card.side-b .wiki:hover {
+  border-color: var(--amber); background: rgba(239, 122, 69, 0.09);
+  box-shadow: 0 4px 12px rgba(239, 122, 69, 0.2);
+}
 /* Compact prefer button so "Prefer <name>" fits a half-width card; restored
    to the full size in the ≥720px enhancement. margin-top:auto (set on .prefer)
    pins it to the card foot so both buttons line up despite uneven bios. */
@@ -334,7 +357,7 @@ button.cta:disabled { color: var(--muted); border-bottom-color: var(--border); c
   .desc { font-size: 0.95rem; }
   .lead { font-size: 0.9rem; }
   .lead.clamped { -webkit-line-clamp: 5; line-clamp: 5; }
-  .wiki { font-size: 0.85rem; margin: 0.5rem 0 0.2rem; }
+  .wiki { font-size: 0.82rem; padding: 0.45rem 1rem; margin-bottom: 0.65rem; }
   .vs {
     /* relative (not static) so the ::before/::after rings stay anchored to
        the medallion — under static they'd resolve against .cards and blow up. */
