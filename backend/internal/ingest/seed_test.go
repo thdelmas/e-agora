@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 )
 
 func discardLogger() *slog.Logger {
@@ -218,13 +219,25 @@ func TestFirstSentence(t *testing.T) {
 // --- seeder tests (fakes, no network) ----------------------------------------
 
 type fakeWriter struct {
-	count        int
-	subjects     int
-	qids         []string // returned by AllSubjectQIDs (the sync's existing pool)
-	translations []translation
+	count          int
+	subjects       int
+	qids           []string // returned by AllSubjectQIDs (the sync's existing pool)
+	translations   []translation
+	pageviews      []pageview
+	geos           []geo
+	globalRefishes int
 }
 
 type translation struct{ lang, name, desc, extract, img, url string }
+type pageview struct {
+	subjectID int64
+	lang      string
+	views     int64
+}
+type geo struct {
+	subjectID         int64
+	country, continent string
+}
 
 func (f *fakeWriter) CountSubjects(context.Context) (int, error)       { return f.count, nil }
 func (f *fakeWriter) AllSubjectQIDs(context.Context) ([]string, error) { return f.qids, nil }
@@ -236,11 +249,21 @@ func (f *fakeWriter) UpsertTranslation(_ context.Context, _ int64, lang, name, d
 	f.translations = append(f.translations, translation{lang, name, desc, extract, img, url})
 	return nil
 }
+func (f *fakeWriter) UpsertPageviews(_ context.Context, subjectID int64, lang string, views int64) error {
+	f.pageviews = append(f.pageviews, pageview{subjectID, lang, views})
+	return nil
+}
+func (f *fakeWriter) RefreshGlobalViews(context.Context) error { f.globalRefishes++; return nil }
+func (f *fakeWriter) SetSubjectGeo(_ context.Context, subjectID int64, country, continent string) error {
+	f.geos = append(f.geos, geo{subjectID, country, continent})
+	return nil
+}
 
 type fakeFetcher struct {
-	entity  func(qid string) (EntityFacts, error)
-	summary func(lang, title string) (Summary, error)
-	leaders func() ([]string, error)
+	entity    func(qid string) (EntityFacts, error)
+	summary   func(lang, title string) (Summary, error)
+	leaders   func() ([]string, error)
+	pageviews func(lang, title string) (int64, error)
 }
 
 func (f fakeFetcher) Entity(_ context.Context, qid string) (EntityFacts, error) {
@@ -254,6 +277,12 @@ func (f fakeFetcher) LeaderQIDs(context.Context) ([]string, error) {
 		return nil, nil
 	}
 	return f.leaders()
+}
+func (f fakeFetcher) Pageviews(_ context.Context, lang, title string, _, _ time.Time) (int64, error) {
+	if f.pageviews == nil {
+		return 0, nil
+	}
+	return f.pageviews(lang, title)
 }
 
 func TestSeed_OffMode(t *testing.T) {
@@ -420,6 +449,150 @@ func TestSyncOnce_DiscoveryFailureStillRefreshes(t *testing.T) {
 	}
 	if w.subjects != 1 {
 		t.Errorf("upserts = %d, want 1 (Q1 refreshed despite discovery failure)", w.subjects)
+	}
+}
+
+func TestParsePageviews(t *testing.T) {
+	// The REST metrics response carries one item per period; the signal is the sum.
+	raw := []byte(`{"items":[
+		{"project":"en.wikipedia","article":"Angela_Merkel","granularity":"monthly","timestamp":"2026030100","views":120000},
+		{"project":"en.wikipedia","article":"Angela_Merkel","granularity":"monthly","timestamp":"2026040100","views":80000}
+	]}`)
+	total, err := parsePageviews(raw)
+	if err != nil {
+		t.Fatalf("parsePageviews: %v", err)
+	}
+	if total != 200000 {
+		t.Errorf("total = %d, want 200000", total)
+	}
+}
+
+func TestParsePageviews_Empty(t *testing.T) {
+	total, err := parsePageviews([]byte(`{"items":[]}`))
+	if err != nil || total != 0 {
+		t.Errorf("empty items = (%d,%v), want (0,nil)", total, err)
+	}
+}
+
+func TestParseEntity_CapturesSitelinkTitles(t *testing.T) {
+	// The per-language titles drive the pageview pass without extra fetches; the
+	// non-Wikipedia commons sitelink is excluded like it is from Langs.
+	raw := []byte(`{"entities":{"Q567":{
+		"labels":{"en":{"value":"Angela Merkel"}},
+		"sitelinks":{
+			"enwiki":{"title":"Angela Merkel"},
+			"frwiki":{"title":"Angela Merkel"},
+			"commonswiki":{"title":"Category:Angela Merkel"}
+		},
+		"claims":{"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}]}
+	}}}`)
+	got, err := parseEntity(raw, "Q567")
+	if err != nil {
+		t.Fatalf("parseEntity: %v", err)
+	}
+	if got.Sitelinks["en"] != "Angela Merkel" || got.Sitelinks["fr"] != "Angela Merkel" {
+		t.Errorf("Sitelinks = %v (want en+fr titles)", got.Sitelinks)
+	}
+	if _, ok := got.Sitelinks["commons"]; ok {
+		t.Errorf("Sitelinks should exclude commons: %v", got.Sitelinks)
+	}
+}
+
+func TestSeedOne_RecordsPageviews(t *testing.T) {
+	w := &fakeWriter{}
+	s := &Seeder{
+		Store:          w,
+		Logger:         discardLogger(),
+		PageviewLangs:  []string{"en", "fr", "de"}, // de has no sitelink → skipped
+		PageviewWindow: 90 * 24 * time.Hour,
+		Fetcher: fakeFetcher{
+			entity: func(string) (EntityFacts, error) {
+				return EntityFacts{
+					QID: "Q1", IsHuman: true, LabelEn: "A Leader", EnwikiTitle: "A_Leader",
+					Langs:     []string{"en", "fr"},
+					Sitelinks: map[string]string{"en": "A Leader", "fr": "Un Dirigeant"},
+				}, nil
+			},
+			summary:   func(string, string) (Summary, error) { return Summary{Name: "A Leader", WikipediaURL: "u"}, nil },
+			pageviews: func(lang, _ string) (int64, error) { return map[string]int64{"en": 5000, "fr": 1200}[lang], nil },
+		},
+	}
+	if err := s.seedOne(context.Background(), seedItem{QID: "Q1"}); err != nil {
+		t.Fatalf("seedOne: %v", err)
+	}
+	if len(w.pageviews) != 2 {
+		t.Fatalf("recorded %d pageview rows, want 2 (en+fr; de has no sitelink)", len(w.pageviews))
+	}
+	got := map[string]int64{}
+	for _, pv := range w.pageviews {
+		got[pv.lang] = pv.views
+	}
+	if got["en"] != 5000 || got["fr"] != 1200 {
+		t.Errorf("pageviews = %v, want en=5000 fr=1200", got)
+	}
+}
+
+func TestParseEntity_CountryAndContinent(t *testing.T) {
+	// A person carries P27 (country); a country entity carries P30 (continent).
+	person := []byte(`{"entities":{"Q1":{
+		"labels":{"en":{"value":"A Leader"}},"sitelinks":{"enwiki":{"title":"A_Leader"}},
+		"claims":{"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}],
+		          "P27":[{"mainsnak":{"datavalue":{"value":{"id":"Q142"}}}}]}}}}`)
+	got, err := parseEntity(person, "Q1")
+	if err != nil {
+		t.Fatalf("parseEntity: %v", err)
+	}
+	if got.CountryQID != "Q142" {
+		t.Errorf("CountryQID = %q, want Q142", got.CountryQID)
+	}
+	country := []byte(`{"entities":{"Q142":{"labels":{"en":{"value":"France"}},
+		"sitelinks":{"enwiki":{"title":"France"}},
+		"claims":{"P30":[{"mainsnak":{"datavalue":{"value":{"id":"Q46"}}}}]}}}}`)
+	cgot, err := parseEntity(country, "Q142")
+	if err != nil {
+		t.Fatalf("parseEntity(country): %v", err)
+	}
+	if cgot.ContinentQID != "Q46" || continentName[cgot.ContinentQID] != "Europe" {
+		t.Errorf("continent = %q→%q, want Q46→Europe", cgot.ContinentQID, continentName[cgot.ContinentQID])
+	}
+}
+
+func TestSeedOne_ResolvesGeo(t *testing.T) {
+	// The person's P27 → country fetch → continent, recorded once and cached.
+	w := &fakeWriter{}
+	s := &Seeder{Store: w, Logger: discardLogger(), Fetcher: fakeFetcher{
+		entity: func(qid string) (EntityFacts, error) {
+			switch qid {
+			case "Q142":
+				return EntityFacts{QID: "Q142", LabelEn: "France", ContinentQID: "Q46"}, nil
+			default:
+				return EntityFacts{QID: qid, IsHuman: true, EnwikiTitle: "X", Langs: []string{"en"}, CountryQID: "Q142"}, nil
+			}
+		},
+		summary: func(string, string) (Summary, error) { return Summary{Name: "X", WikipediaURL: "u"}, nil },
+	}}
+	if err := s.seedOne(context.Background(), seedItem{QID: "Q1"}); err != nil {
+		t.Fatalf("seedOne: %v", err)
+	}
+	if len(w.geos) != 1 || w.geos[0].country != "France" || w.geos[0].continent != "Europe" {
+		t.Errorf("geos = %+v, want one France/Europe", w.geos)
+	}
+}
+
+func TestSeed_PageviewsDisabledSkipsPass(t *testing.T) {
+	// No PageviewLangs configured: no pageview fetches, no global-views refresh.
+	w := &fakeWriter{}
+	s := &Seeder{Store: w, Logger: discardLogger(), Fetcher: fakeFetcher{
+		entity: func(string) (EntityFacts, error) {
+			return EntityFacts{QID: "Q1", IsHuman: true, EnwikiTitle: "X", Langs: []string{"en"}, Sitelinks: map[string]string{"en": "X"}}, nil
+		},
+		summary: func(string, string) (Summary, error) { return Summary{Name: "X", WikipediaURL: "u"}, nil },
+	}}
+	if err := s.seedOne(context.Background(), seedItem{QID: "Q1"}); err != nil {
+		t.Fatalf("seedOne: %v", err)
+	}
+	if len(w.pageviews) != 0 {
+		t.Errorf("recorded %d pageviews with the pass disabled, want 0", len(w.pageviews))
 	}
 }
 

@@ -7,6 +7,12 @@ import { api } from './api/client'
 
 const WELCOME_KEY = 'eagora_welcomed'
 const DECEASED_KEY = 'eagora_include_deceased'
+const REGION_KEY = 'eagora_pool_region'
+const FAME_KEY = 'eagora_pool_fame'
+
+// The continents the region pool offers; '' is the whole world (no region
+// filter). Mirrors the backend's continentName buckets (docs/10 §4).
+export const REGIONS = ['', 'Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania']
 
 // Whether the visitor has seen the one-time welcome + privacy note. Kept in
 // localStorage only (never sent to the server), so a returning visitor isn't
@@ -54,6 +60,46 @@ export function setIncludeDeceased(on) {
   } catch {
     // No persistence; the preference lasts this session only. Harmless.
   }
+}
+
+// The visitor-selected pool (docs/10 §4): a region (continent) and a "famous
+// only" tier. Like the deceased filter, these scope *which* figures are drawn and
+// ranked — never a separate ranking — and are display preferences persisted
+// locally, sent only as per-request query flags.
+function readLS(key, fallback) {
+  try {
+    return localStorage.getItem(key) ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+export const poolRegion = ref(REGIONS.includes(readLS(REGION_KEY, '')) ? readLS(REGION_KEY, '') : '')
+export const poolFameTop = ref(readLS(FAME_KEY, '0') === '1')
+
+export function setPoolRegion(region) {
+  poolRegion.value = REGIONS.includes(region) ? region : ''
+  try {
+    localStorage.setItem(REGION_KEY, poolRegion.value)
+  } catch {}
+}
+
+export function setPoolFameTop(on) {
+  poolFameTop.value = !!on
+  try {
+    localStorage.setItem(FAME_KEY, on ? '1' : '0')
+  } catch {}
+}
+
+// poolQuery builds the query flags for the current pool selection, omitting any
+// axis left at its default so the URL stays clean (and the server treats an
+// absent flag as "no filter").
+export function poolQuery() {
+  const q = {}
+  if (includeDeceased.value) q.includeDeceased = 'true'
+  if (poolRegion.value) q.region = poolRegion.value
+  if (poolFameTop.value) q.fameTier = 'top'
+  return q
 }
 
 export const me = reactive({

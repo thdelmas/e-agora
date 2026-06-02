@@ -30,6 +30,22 @@ func (s *Store) UpsertSubject(ctx context.Context, qid, canonicalName, source st
 	return id, nil
 }
 
+// SetSubjectGeo records a subject's country and continent (the region pool axis,
+// docs/10 §4), resolved from Wikidata at sync. Empty values store NULL (unknown →
+// the subject matches no region pool). Kept separate from UpsertSubject so the
+// geo backfill doesn't touch the rest of the upsert path.
+func (s *Store) SetSubjectGeo(ctx context.Context, subjectID int64, country, continent string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE subjects SET country = NULLIF($2, ''), continent = NULLIF($3, ''), updated_at = now()
+		WHERE id = $1`,
+		subjectID, country, continent,
+	)
+	if err != nil {
+		return fmt.Errorf("set subject geo %d: %w", subjectID, err)
+	}
+	return nil
+}
+
 // AllSubjectQIDs returns every subject's Wikidata QID (active or not, seed or
 // user-added), oldest first. It is the candidate set the daily sync re-fetches
 // from Wikidata to refresh metadata (name, languages, date of death).

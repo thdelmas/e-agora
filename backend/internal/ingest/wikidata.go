@@ -14,12 +14,15 @@ const instanceOfHuman = "Q5"
 
 // EntityFacts is the subset of a Wikidata entity ingestion needs.
 type EntityFacts struct {
-	QID         string
-	IsHuman     bool     // P31 contains Q5
-	LabelEn     string   // English label → canonical_name
-	EnwikiTitle string   // sitelink title for en.wikipedia.org (empty if none)
-	Langs       []string // Wikipedia language editions this subject has (sorted)
-	DiedAt      string   // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
+	QID          string
+	IsHuman      bool              // P31 contains Q5
+	LabelEn      string            // English label → canonical_name
+	EnwikiTitle  string            // sitelink title for en.wikipedia.org (empty if none)
+	Langs        []string          // Wikipedia language editions this subject has (sorted)
+	Sitelinks    map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
+	DiedAt       string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
+	CountryQID   string            // P27 country of citizenship (first claim) — the region pool axis (docs/10 §4)
+	ContinentQID string            // P30 continent (first claim) — set when the entity is a country, mapped to a name
 }
 
 // Entity fetches and parses the Wikidata entity for a QID via the EntityData
@@ -128,16 +131,43 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 			}
 		}
 	}
+	// P27 (country of citizenship) drives the region pool; P30 (continent) is read
+	// when this entity *is* a country, so resolving a person's country yields its
+	// continent in the same fetch. Both take the first item-valued claim.
+	for _, claim := range ent.Claims["P27"] {
+		var v struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID != "" {
+			facts.CountryQID = v.ID
+			break
+		}
+	}
+	for _, claim := range ent.Claims["P30"] {
+		var v struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID != "" {
+			facts.ContinentQID = v.ID
+			break
+		}
+	}
+
 	facts.EnwikiTitle = ent.Sitelinks["enwiki"].Title
 
 	langs := make([]string, 0, len(ent.Sitelinks))
-	for site := range ent.Sitelinks {
+	sitelinks := make(map[string]string, len(ent.Sitelinks))
+	for site, sl := range ent.Sitelinks {
 		if lang, ok := wikiLang(site); ok {
 			langs = append(langs, lang)
+			if sl.Title != "" {
+				sitelinks[lang] = sl.Title
+			}
 		}
 	}
 	sort.Strings(langs)
 	facts.Langs = langs
+	facts.Sitelinks = sitelinks
 	return facts, nil
 }
 

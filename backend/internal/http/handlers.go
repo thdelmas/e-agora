@@ -30,8 +30,18 @@ type matchupResponse struct {
 // so a visitor can compare them against the living (docs/05-ranking.md §Filtering
 // the deceased).
 func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
-	includeDeceased := boolParam(r.URL.Query().Get("includeDeceased"))
-	pair, err := h.store.RandomPair(r.Context(), includeDeceased)
+	// The visitor's language drives the recognition-weighted draw (docs/10): the
+	// matchup is sampled toward figures read in *their* language, not just the
+	// globally famous. Resolved before the draw, then reused for display.
+	visitor := lang.Pick(r.URL.Query().Get("lang"), r.Header.Get("Accept-Language"), h.cfg.FallbackLang)
+	reco := store.RecoParams{
+		Base:          h.cfg.RecoBase,
+		Alpha:         h.cfg.RecoAlpha,
+		Beta:          h.cfg.RecoBeta,
+		Gamma:         h.cfg.RecoGamma,
+		DiscoveryRate: h.cfg.DiscoveryRate,
+	}
+	pair, err := h.store.RandomPair(r.Context(), visitor, reco, h.poolFrom(r))
 	if errors.Is(err, store.ErrPoolTooSmall) {
 		writeError(w, http.StatusConflict, "pool_too_small", "The agora is still being set up — check back soon.")
 		return
@@ -43,7 +53,6 @@ func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
 	}
 	a, b := pair[0], pair[1]
 
-	visitor := lang.Pick(r.URL.Query().Get("lang"), r.Header.Get("Accept-Language"), h.cfg.FallbackLang)
 	display, fellBack := lang.Resolve(visitor, h.cfg.FallbackLang, a.AvailableLangs, b.AvailableLangs)
 
 	ta := h.ensureExtract(r.Context(), a, h.localize(r.Context(), a, display))

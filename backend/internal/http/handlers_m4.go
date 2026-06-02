@@ -11,6 +11,7 @@ import (
 
 	"github.com/thdelmas/e-agora/backend/internal/lang"
 	"github.com/thdelmas/e-agora/backend/internal/model"
+	"github.com/thdelmas/e-agora/backend/internal/store"
 	"github.com/thdelmas/e-agora/backend/internal/subjects"
 	"github.com/thdelmas/e-agora/backend/internal/token"
 )
@@ -74,9 +75,8 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := clampInt(r.URL.Query().Get("limit"), 100, 1, 500)
 	offset := clampInt(r.URL.Query().Get("offset"), 0, 0, 1_000_000)
-	includeDeceased := boolParam(r.URL.Query().Get("includeDeceased"))
 
-	subs, err := h.store.TopByRating(r.Context(), limit, offset, includeDeceased)
+	subs, err := h.store.TopByRating(r.Context(), limit, offset, h.poolFrom(r))
 	if err != nil {
 		h.logger.Error("leaderboard", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal", "Could not load the rankings.")
@@ -192,6 +192,20 @@ func (h *handlers) subjectsSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+}
+
+// poolFrom reads the visitor's pool selection (docs/10 §4) from the query — the
+// scope shared by the matchup draw and the leaderboard view: status
+// (?includeDeceased), region (?region=Europe), and fame tier (?fameTier=top).
+// An empty selection is the whole living pool (the prior default).
+func (h *handlers) poolFrom(r *http.Request) store.Pool {
+	q := r.URL.Query()
+	return store.Pool{
+		IncludeDeceased: boolParam(q.Get("includeDeceased")),
+		Continent:       strings.TrimSpace(q.Get("region")),
+		FameTop:         strings.EqualFold(q.Get("fameTier"), "top"),
+		FamePct:         h.cfg.FameTierPct,
+	}
 }
 
 // boolParam parses a query flag: "1", "true" or "yes" (any case) are true; an

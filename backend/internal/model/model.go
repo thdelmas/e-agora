@@ -18,6 +18,7 @@ type Subject struct {
 	Wins           int
 	Losses         int
 	Comparisons    int
+	GlobalViews    int64 // trailing-window Wikipedia pageviews summed across languages (global-fame lever, docs/10)
 	Active         bool
 	DiedAt         *time.Time // date of death (Wikidata P570); nil = living or unknown
 	CreatedAt      time.Time

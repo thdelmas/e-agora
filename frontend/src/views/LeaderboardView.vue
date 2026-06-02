@@ -4,7 +4,8 @@ import { api } from '../api/client'
 import LeaderboardRow from '../components/LeaderboardRow.vue'
 import AccessBanner from '../components/AccessBanner.vue'
 import AddSubjectModal from '../components/AddSubjectModal.vue'
-import { me, includeDeceased, setIncludeDeceased } from '../store'
+import PoolPicker from '../components/PoolPicker.vue'
+import { me, poolQuery } from '../store'
 
 // The pool holds hundreds of subjects, so we page through them instead of
 // capping the view at the first 100. Each scroll to the bottom (or click of the
@@ -40,8 +41,7 @@ async function loadMore() {
   loading.value = true
   error.value = ''
   try {
-    const opts = { limit: PAGE_SIZE, offset }
-    if (includeDeceased.value) opts.includeDeceased = 'true'
+    const opts = { limit: PAGE_SIZE, offset, ...poolQuery() }
     const page = await api.leaderboard(opts)
     totalVotes.value = page.totalVotes
     for (const entry of page.entries) {
@@ -59,10 +59,9 @@ async function loadMore() {
   }
 }
 
-// Toggling the deceased filter changes the whole result set, so we discard the
-// paged-in rows and the seen-id guard and reload from the top.
-function onToggleDeceased(e) {
-  setIncludeDeceased(e.target.checked)
+// Changing the pool (region / fame tier / deceased) changes the whole result
+// set, so discard the paged-in rows and the seen-id guard and reload from the top.
+function onPoolChange() {
   entries.value = []
   seen.clear()
   offset = 0
@@ -97,10 +96,7 @@ onUnmounted(() => observer?.disconnect())
     <h1><span class="crown">🏛️</span> World rankings</h1>
     <p class="muted">Forged head-to-head from the aggregated preferences of anonymous visitors.</p>
 
-    <label class="deceased-toggle">
-      <input type="checkbox" :checked="includeDeceased" @change="onToggleDeceased" />
-      Include figures who have died — rank them against the living
-    </label>
+    <PoolPicker @change="onPoolChange" />
 
     <template v-if="entries.length">
       <p class="stat">🗳️ {{ totalVotes.toLocaleString() }} votes cast by visitors worldwide</p>

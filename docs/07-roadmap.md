@@ -168,6 +168,68 @@ activity, while honoring the anonymity promise (R3 / no PII).
   "Votes over time" and "Visitors over time" render with other privacy-safe
   metrics; the page is reachable without an access token.
 
+### M9 — Pageview substrate (recognition data) ✅ (done)
+Foundation for fixing the #1 feedback — "two people I've never heard of"
+([10-recognition-and-pools.md](10-recognition-and-pools.md)). Recognition is *local*;
+the board only measured *global* notability. Ingest the signal that captures local
+attention. Additive — no behavior change yet.
+- [x] Migration `0006_pageviews.sql`: `subject_pageviews(subject_id, lang, views,
+      window_end)` + `subjects.global_views` + indexes.
+- [x] `ingest.Client.Pageviews` (Wikimedia REST per-article metrics) + pure
+      `parsePageviews` **with a fixture test**; `EntityFacts.Sitelinks` (lang→title) so
+      one entity fetch yields all titles.
+- [x] Sync fills `subject_pageviews` for a served-languages set
+      (`EAGORA_PAGEVIEW_LANGS`, ~20 major Wikipedias) over a trailing window
+      (`EAGORA_PAGEVIEW_WINDOW`), then recomputes `global_views`.
+- **Done when**: after a sync, `subject_pageviews` is populated for served languages and
+  `global_views` reflects the per-language sum; a fresh DB with no pageviews still serves
+  matchups (graceful fallback); `ingest` parse tests green.
+  *Met: migration applies to a fresh DB; pageview pass reuses the entity's sitelink
+  titles (no extra fetch); recomputes `global_views`; parse + seeder tests green.*
+
+### M10 — Recognition-weighted draw ⭐ ✅ (done — fixes the headline complaint)
+- [x] `RandomPair` takes the visitor language; weights both picks by the recognition
+      score `R(s│v) = base·langs + α·local + β·global + γ·share·local` (config
+      `EAGORA_RECO_BASE/ALPHA/BETA/GAMMA`); the `base·langs` term degrades to the old
+      `cardinality(available_langs)` weighting when `global_views` is absent.
+- [x] Discovery slot (`EAGORA_DISCOVERY_RATE`, ~0.15) draws the challenger by coverage
+      bias against a recognizable anchor.
+- [x] Handler resolves the visitor language *before* the draw and passes it in (no
+      frontend change — the endpoint already knows the language).
+- **Done when**: matchups for a given `?lang=` reliably surface locally-recognizable
+  figures; `go build` + `go test ./...` green.
+  *Met: validated vs Postgres — weights match the closed form; over 600 `fr` draws the
+  famous-and-local subject anchors most, the obscure-foreign one least; live
+  `GET /api/matchup?lang=fr` returns recognizable pairs, never two unknowns.*
+
+### M11 — Pools (visitor-selectable scope) ✅ (region/fame/status done; office-tier deferred)
+- [x] Migration `0007_pools.sql`: re-add `subjects.country` + `continent` for the
+      *region pool* axis (distinct from the per-figure label 0003 dropped).
+- [x] Sync extracts country (P27) and resolves its continent (P30, cached per country);
+      `SetSubjectGeo` backfills without touching the upsert path.
+- [x] `RandomPair` accepts a `Pool` (status / region / fame tier); explicit pools are
+      **strict** — connectivity comes from the default pool, whose draws span continents.
+- [ ] *Office tier* — deferred: P39 → tier needs fragile per-position mapping and the
+      seed pool is heads of state/government only, so it adds little now.
+- **Done when**: a visitor can scope matchups to a pool and sees recognizable contests
+  within it; the single global rating stays valid.
+  *Met: validated vs Postgres — `region=Africa` only ever anchors/challenges African
+  rows; `fameTier=top` keeps only the top-percentile by `global_views`.*
+
+### M12 — Per-pool leaderboards ✅ (done)
+- [x] `GET /api/leaderboard` gains `region` / `fameTier` / `includeDeceased` params via a
+      shared `poolFrom`; `TopByRating` filters as a *view* over the one global rating.
+- **Done when**: filtered leaderboards ("Top European leaders", "Famous only") return
+  correct slices of the global ranking.
+  *Met: `TopByRating` validated vs Postgres for region + fame-percentile filters.*
+
+### M13 — Pool UI ✅ (code-complete)
+- [x] `PoolPicker.vue` (region select + "Famous only" + deceased) shared by the matchup
+      and leaderboard views via the store (`poolQuery`); reload on change.
+- **Done when**: a visitor can pick a pool and vote/browse within it in the browser.
+  *Code-complete: `npm run build` green (44 modules); the in-browser click-through wants
+  a human at a browser (`make dev`).*
+
 ## Definition of done (v1)
 
 All requirements demonstrably met:
