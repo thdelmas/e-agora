@@ -78,6 +78,50 @@ func (s *Store) SubjectQIDsMissingGeo(ctx context.Context) ([]string, error) {
 	return out, rows.Err()
 }
 
+// CountryStat is one country present in the pool: its English label (the exact
+// value Pool.Country filters on), the continent bucket(s) it belongs to (so the
+// picker can group it), and how many active living subjects it has.
+type CountryStat struct {
+	Name       string   `json:"name"`
+	Continents []string `json:"continents"`
+	Count      int      `json:"count"`
+}
+
+// Countries lists the countries with at least two active living subjects — the
+// finer-grained region pools (docs/10 §4) the picker offers beneath the
+// continents. country is the Wikidata English label written at geo backfill, so
+// each Name is exactly what Pool.Country matches; the two-subject floor hides
+// countries too thin to draw a matchup from. Ordered by subject count (the pools
+// a visitor is likeliest to want) then name.
+func (s *Store) Countries(ctx context.Context) ([]CountryStat, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT country, continents, cnt FROM (
+			SELECT DISTINCT ON (country)
+			       country,
+			       coalesce(continent, '{}') AS continents,
+			       count(*) OVER (PARTITION BY country)::int AS cnt
+			FROM subjects
+			WHERE active AND died_at IS NULL AND country IS NOT NULL
+			ORDER BY country
+		) q
+		WHERE cnt >= 2
+		ORDER BY cnt DESC, country ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("countries: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CountryStat
+	for rows.Next() {
+		var c CountryStat
+		if err := rows.Scan(&c.Name, &c.Continents, &c.Count); err != nil {
+			return nil, fmt.Errorf("scan country: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // AllSubjectQIDs returns every subject's Wikidata QID (active or not, seed or
 // user-added), oldest first. It is the candidate set the daily sync re-fetches
 // from Wikidata to refresh metadata (name, languages, date of death).

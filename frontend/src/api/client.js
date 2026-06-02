@@ -40,4 +40,6 @@ export const api = {
   searchSubjects: (q, lang) => request(`/subjects/search?q=${encodeURIComponent(q)}${lang ? `&lang=${lang}` : ''}`),
   addSubject: (payload) => request('/subjects', { method: 'POST', body: payload }),
   stats: (days) => request(`/stats${days ? `?days=${days}` : ''}`),
+  // Countries with enough subjects to scope a pool, for the picker (docs/10 §4).
+  countries: () => request('/countries'),
 }

@@ -13,8 +13,9 @@ import (
 // (more evidence) then name for determinism (docs/05-ranking.md §Leaderboard
 // ordering). The pool scopes the board to one view over the single global rating
 // (docs/10 §4): the deceased are excluded unless pool.IncludeDeceased, and
-// Continent / FameTop narrow it to a region or the top fame tier — ranking *within*
-// a pool is a filter, not a separate rating. Full subject rows are returned (incl.
+// Continent / Country / FameTop narrow it to a region, a country or the top fame
+// tier — ranking *within* a pool is a filter, not a separate rating. Full subject
+// rows are returned (incl.
 // rating/rd/wins/losses/died_at); the handler localizes each.
 func (s *Store) TopByRating(ctx context.Context, limit, offset int, pool Pool) ([]model.Subject, error) {
 	rows, err := s.pool.Query(ctx, `
@@ -29,10 +30,11 @@ func (s *Store) TopByRating(ctx context.Context, limit, offset int, pool Pool) (
 		FROM subjects
 		WHERE active AND ($3 OR died_at IS NULL)
 		  AND ($4 = '' OR continent @> ARRAY[$4])
+		  AND ($7 = '' OR country = $7)
 		  AND global_views >= (SELECT fame_min FROM cutoff)
 		ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
 		LIMIT $1 OFFSET $2`,
-		limit, offset, pool.IncludeDeceased, pool.Continent, pool.FameTop, pool.FamePct)
+		limit, offset, pool.IncludeDeceased, pool.Continent, pool.FameTop, pool.FamePct, pool.Country)
 	if err != nil {
 		return nil, fmt.Errorf("leaderboard: %w", err)
 	}

@@ -37,6 +37,7 @@ type Config struct {
 	RecoBeta       float64       // EAGORA_RECO_BETA: weight on global fame (views across all languages)
 	RecoGamma      float64       // EAGORA_RECO_GAMMA: weight on sphere affinity (the visitor language's share of attention)
 	RecoRegion     float64       // EAGORA_RECO_REGION: additive boost for a subject in the visitor's chosen home region (soft bias, not a filter)
+	RecoCountry    float64       // EAGORA_RECO_COUNTRY: additive boost for a subject in the visitor's home country (soft bias, finer/stronger than region)
 	DiscoveryRate  float64       // EAGORA_DISCOVERY_RATE: fraction of matchups drawing a coverage-biased challenger
 	FameTierPct    float64       // EAGORA_FAME_TIER_PCT: global_views percentile cutoff for the "famous only" pool (0.7 = top 30%)
 }
@@ -86,7 +87,10 @@ func Load() Config {
 		// don't need it — and it never *excludes* anyone, so the cross-region
 		// discovery slot still bridges the pools and the one Glicko scale stays
 		// comparable. A hard region filter (the PoolPicker) is the opt-in instead.
+		// RecoCountry is the same nudge at country granularity (a sharper proxy for
+		// "people I'd recognize"), so it leans a touch harder than the continent one.
 		RecoRegion:    envFloat("EAGORA_RECO_REGION", 2.5),
+		RecoCountry:   envFloat("EAGORA_RECO_COUNTRY", 3.5),
 		DiscoveryRate: envFloat("EAGORA_DISCOVERY_RATE", 0.15),
 		FameTierPct:   envFloat("EAGORA_FAME_TIER_PCT", 0.7),
 	}
