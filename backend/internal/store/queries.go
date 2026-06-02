@@ -28,6 +28,7 @@ type RecoParams struct {
 	Alpha         float64 // weight on ln(1+local views) — attention in the visitor's language
 	Beta          float64 // weight on ln(1+global views) — worldwide fame
 	Gamma         float64 // weight on sphere affinity — the visitor language's share of attention
+	Region        float64 // flat boost added to a subject in the visitor's home region — a soft bias, not a filter
 	DiscoveryRate float64 // probability the challenger is drawn by coverage bias instead of recognition
 }
 
@@ -66,6 +67,14 @@ type Pool struct {
 // rating to stay comparable across pools, docs/10 §4) comes from the default
 // pool, whose draws inherently span every continent.
 //
+// homeRegion is the visitor's onboarding-chosen continent (docs/10 §4) — a *soft*
+// bias, distinct from pool.Continent's hard filter. A subject in that region gets
+// a flat p.Region added to R, lifting modest *local* figures the visitor knows
+// without excluding anyone: the recognition draw leans home, yet the discovery
+// challenger (coverage-biased, region-blind) still reaches across continents, so
+// the comparison graph stays connected and the one Glicko scale comparable. Empty
+// homeRegion (the visitor never chose, or chose "whole world") adds nothing.
+//
 // Efraimidis–Spirakis weighted sampling without replacement assigns each row a
 // key uᵢ^(1/wᵢ) and takes the largest; P(pick = i) ∝ wᵢ. We order by the key in
 // **log space** — ln(key) = ln(1-random())/wᵢ — to avoid the underflow that
@@ -77,7 +86,7 @@ type Pool struct {
 // pool.IncludeDeceased, and Continent / FameTop narrow both the anchor and the
 // challenger (strict — an explicit selection never leaks an out-of-pool figure).
 // Translations are fetched separately per the resolved display language.
-func (s *Store) RandomPair(ctx context.Context, viewerLang string, p RecoParams, pool Pool) ([]model.Subject, error) {
+func (s *Store) RandomPair(ctx context.Context, viewerLang, homeRegion string, p RecoParams, pool Pool) ([]model.Subject, error) {
 	discovery := rand.Float64() < p.DiscoveryRate
 	rows, err := s.pool.Query(ctx, `
 		WITH cutoff AS (
@@ -91,7 +100,8 @@ func (s *Store) RandomPair(ctx context.Context, viewerLang string, p RecoParams,
 			           $4 * ln(1 + greatest(cardinality(s.available_langs), 1))
 			         + $5 * ln(1 + coalesce(pv.views, 0))
 			         + $6 * ln(1 + s.global_views)
-			         + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0)),
+			         + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0))
+			         + CASE WHEN $11 <> '' AND s.continent @> ARRAY[$11] THEN $12::float8 ELSE 0 END,
 			           1e-9) AS w,
 			       (($8 = '' OR s.continent @> ARRAY[$8]) AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
 			FROM subjects s
@@ -118,7 +128,7 @@ func (s *Store) RandomPair(ctx context.Context, viewerLang string, p RecoParams,
 		) pair
 		ORDER BY random()`,
 		pool.IncludeDeceased, discovery, viewerLang, p.Base, p.Alpha, p.Beta, p.Gamma,
-		pool.Continent, pool.FameTop, pool.FamePct)
+		pool.Continent, pool.FameTop, pool.FamePct, homeRegion, p.Region)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}

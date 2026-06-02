@@ -36,6 +36,7 @@ type Config struct {
 	RecoAlpha      float64       // EAGORA_RECO_ALPHA: weight on local attention (views in the visitor's language)
 	RecoBeta       float64       // EAGORA_RECO_BETA: weight on global fame (views across all languages)
 	RecoGamma      float64       // EAGORA_RECO_GAMMA: weight on sphere affinity (the visitor language's share of attention)
+	RecoRegion     float64       // EAGORA_RECO_REGION: additive boost for a subject in the visitor's chosen home region (soft bias, not a filter)
 	DiscoveryRate  float64       // EAGORA_DISCOVERY_RATE: fraction of matchups drawing a coverage-biased challenger
 	FameTierPct    float64       // EAGORA_FAME_TIER_PCT: global_views percentile cutoff for the "famous only" pool (0.7 = top 30%)
 }
@@ -74,10 +75,18 @@ func Load() Config {
 		// floor (base) that keeps every subject drawable and degrades to the old
 		// langs-count weighting before pageviews land. Tune against real pool data
 		// (the per-language pageview spread) once it's flowing.
-		RecoBase:      envFloat("EAGORA_RECO_BASE", 1.0),
-		RecoAlpha:     envFloat("EAGORA_RECO_ALPHA", 3.0),
-		RecoBeta:      envFloat("EAGORA_RECO_BETA", 3.0),
-		RecoGamma:     envFloat("EAGORA_RECO_GAMMA", 1.5),
+		RecoBase:  envFloat("EAGORA_RECO_BASE", 1.0),
+		RecoAlpha: envFloat("EAGORA_RECO_ALPHA", 3.0),
+		RecoBeta:  envFloat("EAGORA_RECO_BETA", 3.0),
+		RecoGamma: envFloat("EAGORA_RECO_GAMMA", 1.5),
+		// A soft home-region nudge: the visitor's onboarding-chosen region adds a
+		// flat boost to in-region subjects' recognition score (docs/10 §4). Flat and
+		// additive in log-space R, so it lifts modest *local* figures meaningfully
+		// (R≈5 → ×1.5) while barely moving the globally-famous (R≈20 → ×1.1) who
+		// don't need it — and it never *excludes* anyone, so the cross-region
+		// discovery slot still bridges the pools and the one Glicko scale stays
+		// comparable. A hard region filter (the PoolPicker) is the opt-in instead.
+		RecoRegion:    envFloat("EAGORA_RECO_REGION", 2.5),
 		DiscoveryRate: envFloat("EAGORA_DISCOVERY_RATE", 0.15),
 		FameTierPct:   envFloat("EAGORA_FAME_TIER_PCT", 0.7),
 	}
