@@ -79,6 +79,11 @@ jobs:
   docker:
     name: Prod image (Dockerfile.prod)
     runs-on: ubuntu-latest
+    # Only the deploy branches actually ship this image, and it rebuilds what
+    # the backend/frontend jobs already cover. Skip it on PRs (event_name is
+    # 'push' only for main / app-and-free-deploy per the trigger filter above)
+    # to avoid paying for the heaviest job on every feature-branch run.
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
 
