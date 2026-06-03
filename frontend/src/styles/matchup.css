@@ -1,0 +1,293 @@
+/* ------------------------------------------------------------------ Matchup */
+.matchup { text-align: center; }
+.prompt {
+  font-size: clamp(1.75rem, 6vw, 3.1rem);
+  font-weight: 900;
+  margin: 0.5rem 0 0.3rem;
+  letter-spacing: -0.025em; line-height: 1.05;
+}
+.prompt em {
+  font-style: italic;
+  /* Italic glyphs lean past the inline box; pad the right so the clipped
+     gradient covers the trailing "?" instead of fading it out. */
+  padding-right: 0.12em;
+  background: linear-gradient(120deg, var(--teal-deep), var(--amber-deep));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.subprompt {
+  color: var(--muted);
+  margin: 0 0 1.2rem;
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.locked-hint {
+  background: linear-gradient(135deg, #fff6e0, #ffedcb);
+  border: 1px solid #f0d9a8; color: #7a5a18; box-shadow: var(--shadow-sm);
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  display: inline-block;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* Anonymity reassurance shown at the moment of voting. */
+.privacy-note {
+  max-width: 36rem; margin: 1.4rem auto 0; padding: 0.7rem 1rem;
+  border: 1px solid rgba(31, 110, 76, 0.22); border-radius: 12px;
+  background: rgba(31, 110, 76, 0.06); color: var(--ink-soft);
+  font-size: 0.86rem; line-height: 1.45;
+}
+.privacy-note strong { color: var(--laurel-deep); }
+
+/* Mobile-first: the two candidates sit side by side in a tight two-column
+   grid so a voter can compare them at a glance without scrolling. The VS
+   medallion floats over the seam (absolutely positioned, see `.vs`).
+   The portraits are full-width 1:1 squares, so their rendered height equals a
+   card's content width: half the row minus the column gap and card padding.
+   `--portrait-h` tracks that height so the medallion stays centred at any phone
+   size. The roomy desktop layout takes over at ≥720px. */
+.cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;
+  align-items: stretch; justify-content: center; position: relative;
+  --portrait-h: calc(50vw - 3.375rem);
+}
+.cards.busy {
+  opacity: 0.55;
+  pointer-events: none;
+  filter: saturate(0.7);
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+.card {
+  position: relative; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.18s ease, box-shadow 0.22s ease,
+    border-color 0.22s ease;
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: linear-gradient(90deg, var(--teal), var(--teal-deep));
+}
+.card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+.card.side-a { animation-delay: 0.02s; }
+.card.side-a:hover { border-color: rgba(15, 157, 142, 0.5); }
+.card.side-b { animation-delay: 0.1s; }
+.card.side-b::before {
+  background: linear-gradient(90deg, var(--amber), var(--amber-deep));
+}
+.card.side-b:hover { border-color: rgba(239, 122, 69, 0.5); }
+.card.side-b .prefer {
+  background: linear-gradient(135deg, var(--amber), var(--amber-deep));
+  box-shadow: 0 8px 20px rgba(207, 85, 39, 0.3);
+}
+.card.side-b .prefer:hover:not(:disabled) {
+  box-shadow: 0 14px 30px rgba(207, 85, 39, 0.4);
+}
+.card.side-b .wiki { color: var(--amber-deep); }
+
+.side-tag {
+  position: absolute; top: 0.7rem; left: 0.7rem; z-index: 2;
+  width: 1.7rem; height: 1.7rem; display: grid; place-items: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 0.95rem;
+  color: #fff;
+  border-radius: 50%; box-shadow: var(--shadow-sm);
+  background: linear-gradient(135deg, var(--teal), var(--teal-deep));
+}
+.side-b .side-tag {
+  background: linear-gradient(135deg, var(--amber), var(--amber-deep));
+}
+
+/* Square (1:1) frame anchored to the top: Wikipedia portraits are taller than
+   wide with the head near the top, so `object-position: top` keeps the head and
+   crops the torso instead. `--portrait-h` mirrors this rendered height (= the
+   card's content width) so the floating `.vs` medallion stays centred on it. */
+.portrait {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 12px;
+  background: #efe7d6; box-shadow: inset 0 0 0 1px var(--line);
+}
+.portrait.placeholder {
+  display: grid; place-items: center;
+  background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 12px,
+    #e9dfc9 12px, #e9dfc9 24px);
+}
+.portrait.placeholder::after {
+  content: "🏛";
+  font-size: 2.4rem;
+  opacity: 0.5;
+}
+
+.name {
+  font-size: 1.02rem;
+  margin: 0.5rem 0 0.1rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.desc {
+  color: var(--ink-soft);
+  margin: 0.1rem 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+/* The Wikipedia lead paragraph — enough to form an opinion inline.
+   Left-aligned (the card centres everything else) so the prose reads
+   naturally; clamped to a few lines on mobile with a "Show more" toggle so two
+   stacked cards stay scannable and the vote buttons don't get pushed
+   off-screen. */
+.lead {
+  color: var(--ink); margin: 0.45rem 0 0.15rem; font-size: 0.8rem;
+  line-height: 1.5; text-align: left;
+}
+.lead.clamped {
+  display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.more {
+  align-self: flex-start; background: none; border: none; padding: 0;
+  margin: 0 0 0.1rem; cursor: pointer; font-family: inherit;
+  font-size: 0.76rem; font-weight: 700; color: var(--teal-deep);
+}
+.more:hover { text-decoration: underline; }
+.card.side-b .more { color: var(--amber-deep); }
+/* "Read on Wikipedia" — a clear, tappable secondary action rather than a
+   faint text link. A bordered pill, tinted to the card's side (teal A / amber
+   B), carrying the recognisable Wikipedia "W" badge and an open-in-new-tab
+   arrow. margin-top:auto groups it with the Prefer CTA at the card foot, so
+   both line up across cards with uneven bios. */
+.wiki {
+  margin-top: auto; align-self: center;
+  display: inline-flex; align-items: center; gap: 0.4rem; line-height: 1;
+  margin-bottom: 0.5rem; padding: 0.42rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--teal-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 0.16s, background 0.16s, transform 0.12s,
+    box-shadow 0.16s;
+}
+.wiki-mark {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+.wiki-arrow {
+  font-size: 0.95em;
+  opacity: 0.6;
+  transition: opacity 0.16s, transform 0.16s;
+}
+.wiki:hover {
+  border-color: var(--teal); background: rgba(15, 157, 142, 0.08);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 157, 142, 0.18);
+}
+.wiki:hover .wiki-arrow { opacity: 1; transform: translate(1px, -1px); }
+.card.side-b .wiki:hover {
+  border-color: var(--amber); background: rgba(239, 122, 69, 0.09);
+  box-shadow: 0 4px 12px rgba(239, 122, 69, 0.2);
+}
+/* Compact prefer button so "Prefer <name>" fits a half-width card; restored
+   to the full size in the ≥720px enhancement. margin-top:auto (set on
+   .prefer) pins it to the card foot so both buttons line up despite uneven
+   bios. */
+.card .prefer { padding: 0.58rem 0.5rem; font-size: 0.92rem; }
+
+/* The glowing vote medallion. On mobile it floats over the gap between the
+   two cards, centred on the portraits; at ≥720px it returns to the flow
+   between the side-by-side cards. */
+.vs {
+  position: absolute; left: 50%; top: calc(0.8rem + var(--portrait-h) / 2);
+  transform: translate(-50%, -50%);
+  width: 2.7rem; height: 2.7rem; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 900; font-style: italic;
+  font-size: 0.95rem; color: #fff; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #36465e, var(--ink));
+  box-shadow: 0 6px 18px rgba(28, 36, 51, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  z-index: 3;
+}
+.vs::before {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--teal), var(--gold),
+    var(--amber), var(--teal));
+  z-index: -1; filter: blur(2px); animation: spin 6s linear infinite;
+}
+.vs::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(216, 162, 58, 0.5);
+  animation: pulse-ring 2.4s ease-out infinite;
+}
+/* Arrow-key hint is desktop-only — meaningless on touch. */
+.kbd { display: none; font-size: 0.82rem; margin-top: 0.6rem; }
+.kbd kbd {
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 600;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px; padding: 0.05rem 0.4rem; color: var(--ink-soft);
+}
+
+/* ≥720px — roomy "arena" layout: the cards sit side by side with the
+   medallion back in the flow between them (the original desktop look).
+   Everything above is the mobile-first baseline. */
+@media (min-width: 720px) {
+  /* Side-by-side flow with the medallion back in normal flow (`.vs` below), so
+     `--portrait-h` is no longer needed to position it. */
+  .cards { display: flex; flex-wrap: wrap; gap: 1.1rem; }
+  .card { flex: 1 1 300px; max-width: 380px; padding: 1.1rem; }
+  .card .prefer { padding: 0.7rem 1rem; font-size: 1rem; }
+  .name { font-size: 1.35rem; margin: 0.7rem 0 0.15rem; }
+  .desc { font-size: 0.95rem; }
+  .lead { font-size: 0.9rem; }
+  .lead.clamped { -webkit-line-clamp: 5; line-clamp: 5; }
+  .wiki { font-size: 0.82rem; padding: 0.45rem 1rem; margin-bottom: 0.65rem; }
+  .vs {
+    /* relative (not static) so the ::before/::after rings stay anchored to
+       the medallion — under static they'd resolve against .cards and blow
+       up. */
+    position: relative; top: auto; left: auto; transform: none;
+    align-self: center; flex: 0 0 auto;
+    width: 3.6rem; height: 3.6rem; font-size: 1.2rem;
+  }
+  .kbd { display: block; }
+}
+
+.toast {
+  display: inline-block; margin: 1rem auto 0; color: #fff; font-weight: 600;
+  background: linear-gradient(135deg, var(--ink), #36465e);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  box-shadow: var(--shadow-md);
+}
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.25s, transform 0.25s;
+}
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(6px); }
+

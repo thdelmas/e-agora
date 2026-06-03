@@ -1,10 +1,10 @@
 <script setup>
-// The belonging recall step (docs/11 §2–§3): on entering a pool, ask the visitor
-// who comes to mind here. The type-ahead searches figures already in the agora
-// *and* Wikipedia, so a name we haven't seeded yet still resolves — picking a
-// Wikipedia result ingests them on first recall. Presentational: it emits the
-// pick (a subjectId for an existing figure, or a Wikipedia url for a new one),
-// or a skip; the host view does the gated POST.
+// The belonging recall step (docs/11 §2–§3): on entering a pool, ask the
+// visitor who comes to mind here. The type-ahead searches figures already in
+// the agora *and* Wikipedia, so a name we haven't seeded yet still resolves —
+// picking a Wikipedia result ingests them on first recall. Presentational: it
+// emits the pick (a subjectId for an existing figure, or a Wikipedia url for a
+// new one), or a skip; the host view does the gated POST.
 import { ref, watch } from 'vue'
 import { api } from '../api/client'
 
@@ -15,7 +15,8 @@ defineProps({
 const emit = defineEmits(['propose', 'skip'])
 
 const query = ref('')
-const items = ref([]) // { kind: 'existing'|'wiki', name, description?, url?, id? }
+// { kind: 'existing'|'wiki', name, description?, url?, id? }
+const items = ref([])
 const searching = ref(false)
 let timer
 let seq = 0
@@ -27,35 +28,54 @@ watch(query, (q) => {
     items.value = []
     return
   }
-  // Debounce so a fast typist makes one round of requests, not one per keystroke.
+  // Debounce so a fast typist makes one round of requests, not one per
+  // keystroke.
   timer = setTimeout(() => runSearch(term), 220)
 })
 
 async function runSearch(term) {
   const mine = ++seq
   searching.value = true
-  // Existing figures and Wikipedia candidates in parallel; ignore a stale response
-  // if the visitor kept typing.
-  const [dbRes, wikiRes] = await Promise.allSettled([api.recall(term), api.searchSubjects(term)])
+  // Existing figures and Wikipedia candidates in parallel; ignore a stale
+  // response if the visitor kept typing.
+  const [dbRes, wikiRes] = await Promise.allSettled([
+    api.recall(term),
+    api.searchSubjects(term),
+  ])
   if (mine !== seq) return
-  const existing = (dbRes.value?.results || []).map((r) => ({ kind: 'existing', id: r.id, name: r.name }))
+  const existing = (dbRes.value?.results || []).map((r) => ({
+    kind: 'existing',
+    id: r.id,
+    name: r.name,
+  }))
   const seen = new Set(existing.map((e) => e.name.toLowerCase()))
   const wiki = (wikiRes.value?.results || [])
     .filter((r) => r.title && !seen.has(r.title.toLowerCase()))
-    .map((r) => ({ kind: 'wiki', name: r.title, description: r.description, url: r.wikipediaUrl }))
+    .map((r) => ({
+      kind: 'wiki',
+      name: r.title,
+      description: r.description,
+      url: r.wikipediaUrl,
+    }))
   items.value = [...existing, ...wiki].slice(0, 8)
   searching.value = false
 }
 
 function pick(it) {
-  emit('propose', it.kind === 'existing' ? { subjectId: it.id } : { url: it.url })
+  emit(
+    'propose',
+    it.kind === 'existing' ? { subjectId: it.id } : { url: it.url },
+  )
 }
 </script>
 
 <template>
   <div class="recall" role="group" aria-label="Who comes to mind">
     <h2 class="recall-q">Who comes to mind for <em>{{ label }}</em>?</h2>
-    <p class="recall-hint muted">Name anyone you associate with this pool — it teaches the agora who belongs here.</p>
+    <p class="recall-hint muted">
+      Name anyone you associate with this pool — it teaches the agora who
+      belongs here.
+    </p>
 
     <input
       v-model="query"
@@ -71,14 +91,26 @@ function pick(it) {
       <li v-for="it in items" :key="it.kind + (it.id || it.url)">
         <button type="button" :disabled="busy" @click="pick(it)">
           <span class="r-name">{{ it.name }}</span>
-          <span v-if="it.kind === 'wiki'" class="r-tag">＋ from Wikipedia</span>
-          <span v-if="it.description" class="r-desc muted">{{ it.description }}</span>
+          <span v-if="it.kind === 'wiki'" class="r-tag">
+            ＋ from Wikipedia
+          </span>
+          <span v-if="it.description" class="r-desc muted">
+            {{ it.description }}
+          </span>
         </button>
       </li>
     </ul>
-    <p v-else-if="query.trim() && !searching" class="muted recall-empty">No match yet — keep typing.</p>
+    <p
+      v-else-if="query.trim() && !searching"
+      class="muted recall-empty"
+    >No match yet — keep typing.</p>
 
-    <button type="button" class="ghost recall-skip" :disabled="busy" @click="emit('skip')">
+    <button
+      type="button"
+      class="ghost recall-skip"
+      :disabled="busy"
+      @click="emit('skip')"
+    >
       I don’t know anyone here
     </button>
   </div>

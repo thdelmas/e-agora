@@ -6,10 +6,10 @@ import (
 )
 
 // The gold standard: Glickman's own worked example ("Example of the Glicko-2
-// system"). A player at 1500/200/0.06 plays three games (win, loss, loss) in one
-// rating period and must end at 1464.06 / 151.52 / 0.05999. Reproducing it pins
-// the whole algorithm — g, E, variance, the volatility solver, and the scale
-// conversions — to a published reference.
+// system"). A player at 1500/200/0.06 plays three games (win, loss, loss) in
+// one rating period and must end at 1464.06 / 151.52 / 0.05999. Reproducing it
+// pins the whole algorithm — g, E, variance, the volatility solver, and the
+// scale conversions — to a published reference.
 func TestApply_GlickmanWorkedExample(t *testing.T) {
 	player := Rating{R: 1500, RD: 200, Vol: 0.06}
 	games := []game{
@@ -45,7 +45,8 @@ func TestUpdate_Direction(t *testing.T) {
 		t.Errorf("loser rating did not decrease: %.2f", l.R)
 	}
 	if w.RD >= DefaultDeviation || l.RD >= DefaultDeviation {
-		t.Errorf("deviation should shrink with a played game: w=%.2f l=%.2f", w.RD, l.RD)
+		t.Errorf("deviation should shrink with a played game: w=%.2f l=%.2f",
+			w.RD, l.RD)
 	}
 }
 
@@ -76,7 +77,9 @@ func TestUpdate_NotConservedUncertaintyDrivesMagnitude(t *testing.T) {
 	settledDrop := settled.R - settledAfter.R
 	unprovenDrop := unproven.R - unprovenAfter.R
 	if unprovenDrop <= settledDrop {
-		t.Errorf("unproven subject should swing more (%.2f) than settled (%.2f)", unprovenDrop, settledDrop)
+		t.Errorf(
+			"unproven subject should swing more (%.2f) than settled (%.2f)",
+			unprovenDrop, settledDrop)
 	}
 
 	// And the same game is not zero-sum: the 1500's gain need not match the drop.
@@ -92,10 +95,15 @@ func TestUpdate_NotConservedUncertaintyDrivesMagnitude(t *testing.T) {
 // win would, for equally-certain subjects.
 func TestUpdate_UpsetSwingsMore(t *testing.T) {
 	rd := 100.0
-	upsetWinner, _ := Update(Rating{R: 1300, RD: rd, Vol: 0.06}, Rating{R: 1700, RD: rd, Vol: 0.06})
-	expectWinner, _ := Update(Rating{R: 1700, RD: rd, Vol: 0.06}, Rating{R: 1300, RD: rd, Vol: 0.06})
+	upsetWinner, _ := Update(
+		Rating{R: 1300, RD: rd, Vol: 0.06},
+		Rating{R: 1700, RD: rd, Vol: 0.06})
+	expectWinner, _ := Update(
+		Rating{R: 1700, RD: rd, Vol: 0.06},
+		Rating{R: 1300, RD: rd, Vol: 0.06})
 	if (upsetWinner.R - 1300) <= (expectWinner.R - 1700) {
-		t.Errorf("upset gain %.2f should exceed expected-win gain %.2f", upsetWinner.R-1300, expectWinner.R-1700)
+		t.Errorf("upset gain %.2f should exceed expected-win gain %.2f",
+			upsetWinner.R-1300, expectWinner.R-1700)
 	}
 }
 

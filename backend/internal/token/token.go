@@ -20,8 +20,8 @@ var (
 )
 
 // Sign returns a compact signed blob: base64url(payload).base64url(HMAC). The
-// payload is opaque to Sign — callers (access token, humanity challenge) define
-// their own JSON. The HMAC is computed over the base64 body.
+// payload is opaque to Sign — callers (access token, humanity challenge)
+// define their own JSON. The HMAC is computed over the base64 body.
 func Sign(secret string, payload []byte) string {
 	body := b64(payload)
 	return body + "." + b64(mac(secret, body))
@@ -45,8 +45,8 @@ func Open(secret, signed string) ([]byte, error) {
 	return payload, nil
 }
 
-// Claims is the access-token payload (R10). It carries NO subject/session id —
-// anonymity by design; jti is a random nonce.
+// Claims is the access-token payload (R10). It carries NO subject/session
+// id — anonymity by design; jti is a random nonce.
 type Claims struct {
 	Iss string `json:"iss"`
 	Iat int64  `json:"iat"`
@@ -55,14 +55,18 @@ type Claims struct {
 }
 
 // Mint issues a fixed-TTL access token and returns it plus its expiry.
-func Mint(secret string, ttl time.Duration) (tok string, exp time.Time, err error) {
+func Mint(
+	secret string, ttl time.Duration,
+) (tok string, exp time.Time, err error) {
 	jti, err := NewID()
 	if err != nil {
 		return "", time.Time{}, err
 	}
 	now := time.Now()
 	exp = now.Add(ttl)
-	payload, err := json.Marshal(Claims{Iss: "e-agora", Iat: now.Unix(), Exp: exp.Unix(), Jti: jti})
+	payload, err := json.Marshal(Claims{
+		Iss: "e-agora", Iat: now.Unix(), Exp: exp.Unix(), Jti: jti,
+	})
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -85,8 +89,8 @@ func Verify(secret, tok string) (Claims, error) {
 	return c, nil
 }
 
-// NewID returns 32 hex chars of cryptographic randomness — used for jti and for
-// anonymous session ids.
+// NewID returns 32 hex chars of cryptographic randomness — used for jti and
+// for anonymous session ids.
 func NewID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

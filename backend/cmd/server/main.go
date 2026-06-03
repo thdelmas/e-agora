@@ -1,6 +1,6 @@
-// Command server is the e-agora backend entrypoint: it loads config, connects to
-// PostgreSQL, applies migrations, wires the chi router, and serves HTTP with
-// graceful shutdown.
+// Command server is the e-agora backend entrypoint: it loads config, connects
+// to PostgreSQL, applies migrations, wires the chi router, and serves HTTP
+// with graceful shutdown.
 //
 // As of M1 the database is wired and /api/healthz reports the live subject
 // count. Ingestion, voting, and the access-token gate land in later milestones
@@ -25,7 +25,8 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := slog.New(slog.NewJSONHandler(
+		os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
 	cfg := config.Load()
@@ -33,16 +34,19 @@ func main() {
 	// The token secret signs access tokens (R10) and humanity challenges (R12);
 	// refuse to boot without one, and warn loudly on the insecure dev default.
 	if cfg.TokenSecret == "" {
-		logger.Error("EAGORA_TOKEN_SECRET is required (it signs access tokens and humanity challenges)")
+		logger.Error("EAGORA_TOKEN_SECRET is required (it signs access " +
+			"tokens and humanity challenges)")
 		os.Exit(1)
 	}
 	if cfg.TokenSecret == "dev-insecure-change-me" {
-		logger.Warn("EAGORA_TOKEN_SECRET is the insecure dev default — set a strong secret in production")
+		logger.Warn("EAGORA_TOKEN_SECRET is the insecure dev default — set " +
+			"a strong secret in production")
 	}
 
 	// Connect to PostgreSQL and apply migrations before serving. A short,
 	// bounded startup context keeps a dead database from hanging boot.
-	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 15*time.Second)
+	startupCtx, cancelStartup := context.WithTimeout(
+		context.Background(), 15*time.Second)
 	defer cancelStartup()
 
 	db, err := store.Open(startupCtx, cfg.DatabaseURL)
@@ -62,24 +66,30 @@ func main() {
 	logger.Info("migrations up to date", "applied_this_boot", applied)
 
 	// rootCtx ties background seeding and shutdown to one interrupt signal.
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	rootCtx, stop := signal.NotifyContext(
+		context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// Seed the pool from Wikidata/Wikipedia in the background (honoring
 	// EAGORA_SEED) so the server is available immediately; a populated pool
 	// short-circuits in 'auto'.
-	pvOpts := ingest.PageviewOpts{Langs: cfg.PageviewLangs, Window: cfg.PageviewWindow}
+	pvOpts := ingest.PageviewOpts{
+		Langs: cfg.PageviewLangs, Window: cfg.PageviewWindow,
+	}
 	go func() {
-		if err := ingest.Run(rootCtx, db, cfg.Seed, pvOpts, logger); err != nil && !errors.Is(err, context.Canceled) {
+		err := ingest.Run(rootCtx, db, cfg.Seed, pvOpts, logger)
+		if err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("seed failed", "err", err)
 		}
-		// Resolve region-pool geo (country/continent) for any subject still missing
-		// it — figures that predate the pools feature, which auto-seed skips on a
-		// populated pool. Without this the region pools stay empty until the daily
-		// sync runs (docs/10 §4). Skipped under EAGORA_SEED=off (no upstream calls);
-		// a no-op once every subject is resolved.
+		// Resolve region-pool geo (country/continent) for any subject still
+		// missing it — figures that predate the pools feature, which
+		// auto-seed skips on a populated pool. Without this the region pools
+		// stay empty until the daily sync runs (docs/10 §4). Skipped under
+		// EAGORA_SEED=off (no upstream calls); a no-op once every subject is
+		// resolved.
 		if cfg.Seed != "off" {
-			if err := ingest.BackfillGeo(rootCtx, db, logger); err != nil && !errors.Is(err, context.Canceled) {
+			err := ingest.BackfillGeo(rootCtx, db, logger)
+			if err != nil && !errors.Is(err, context.Canceled) {
 				logger.Error("geo backfill failed", "err", err)
 			}
 		}
@@ -87,8 +97,8 @@ func main() {
 
 	// Periodically refresh the pool from Wikidata/Wikipedia (metadata + dates of
 	// death + pageviews) and discover newly-elected leaders, honoring
-	// EAGORA_SYNC_INTERVAL (off to disable). ScheduleSync no-ops when the interval
-	// is non-positive.
+	// EAGORA_SYNC_INTERVAL (off to disable). ScheduleSync no-ops when the
+	// interval is non-positive.
 	go ingest.ScheduleSync(rootCtx, db, cfg.SyncInterval, pvOpts, logger)
 
 	srv := &http.Server{
@@ -100,7 +110,8 @@ func main() {
 	// Run the server until an interrupt signal arrives.
 	go func() {
 		logger.Info("e-agora server starting", "addr", cfg.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("server failed", "err", err)
 			os.Exit(1)
 		}
@@ -109,7 +120,8 @@ func main() {
 	<-rootCtx.Done()
 
 	logger.Info("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "err", err)

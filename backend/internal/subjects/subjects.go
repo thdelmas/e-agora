@@ -1,7 +1,8 @@
 // Package subjects implements user-contributed additions to the pool (R8/R8.1):
-// resolve an input to a Wikidata QID, require a human (Q5) with a Wikipedia page
-// (R2), dedupe by QID, and insert while atomically claiming the access token's
-// one add allowance. Token-gating itself is enforced in the HTTP layer.
+// resolve an input to a Wikidata QID, require a human (Q5) with a Wikipedia
+// page (R2), dedupe by QID, and insert while atomically claiming the access
+// token's one add allowance. Token-gating itself is enforced in the HTTP
+// layer.
 package subjects
 
 import (
@@ -17,14 +18,19 @@ import (
 
 // Service-level errors, mapped to HTTP status codes by the handler.
 var (
-	ErrBadInput  = errors.New("subjects: unusable input")      // 422 not_a_wikipedia_page
-	ErrNoPage    = errors.New("subjects: no Wikipedia page")   // 422 not_a_wikipedia_page
-	ErrNotPerson = errors.New("subjects: not a person")        // 422 not_a_person
-	ErrExists    = errors.New("subjects: already in the pool") // 409 already_exists
-	ErrAddLimit  = errors.New("subjects: add limit reached")   // 429 add_limit_reached
+	// 422 not_a_wikipedia_page
+	ErrBadInput = errors.New("subjects: unusable input")
+	// 422 not_a_wikipedia_page
+	ErrNoPage    = errors.New("subjects: no Wikipedia page")
+	ErrNotPerson = errors.New("subjects: not a person") // 422 not_a_person
+	// 409 already_exists
+	ErrExists = errors.New("subjects: already in the pool")
+	// 429 add_limit_reached
+	ErrAddLimit = errors.New("subjects: add limit reached")
 )
 
-// Fetcher is the upstream slice the service needs (satisfied by *ingest.Client).
+// Fetcher is the upstream slice the service needs (satisfied by
+// *ingest.Client).
 type Fetcher interface {
 	ResolveWikipediaURL(ctx context.Context, raw string) (string, error)
 	Entity(ctx context.Context, qid string) (ingest.EntityFacts, error)
@@ -35,7 +41,10 @@ type Fetcher interface {
 type Store interface {
 	AddTokenUsed(ctx context.Context, jti string) (bool, error)
 	SubjectIDByQID(ctx context.Context, qid string) (int64, bool, error)
-	InsertUserSubject(ctx context.Context, ns store.NewSubject, jti string, tokenExp time.Time) (int64, error)
+	InsertUserSubject(
+		ctx context.Context, ns store.NewSubject, jti string,
+		tokenExp time.Time,
+	) (int64, error)
 	InsertRecalledSubject(ctx context.Context, ns store.NewSubject) (int64, error)
 }
 
@@ -56,7 +65,9 @@ type AddInput struct {
 // Add validates and inserts a user-contributed subject for the given access
 // token (jti/exp), returning the public projection. Errors are the sentinels
 // above. The token's allowance is consumed only on success (R8.1).
-func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp time.Time) (model.SubjectPublic, error) {
+func (s *Service) Add(
+	ctx context.Context, in AddInput, jti string, tokenExp time.Time,
+) (model.SubjectPublic, error) {
 	// Cheap precheck so a spent token never triggers network work.
 	if used, err := s.store.AddTokenUsed(ctx, jti); err != nil {
 		return model.SubjectPublic{}, err
@@ -111,7 +122,8 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 	}
 
 	enName, enDesc, enExtract, enImage := name, "", "", ""
-	enURL := "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
+	enURL := "https://en.wikipedia.org/wiki/" +
+		strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
 	if sum, err := s.fetch.Summary(ctx, "en", facts.EnwikiTitle); err == nil {
 		enName = firstNonEmpty(sum.Name, name)
 		enDesc, enExtract, enImage = sum.Description, sum.Extract, sum.ImageURL
@@ -122,7 +134,8 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 
 	id, err := s.store.InsertUserSubject(ctx, store.NewSubject{
 		QID: qid, Name: name, Langs: langs, DiedAt: facts.DiedAt,
-		EnName: enName, EnDesc: enDesc, EnExtract: enExtract, EnImage: enImage, EnURL: enURL,
+		EnName: enName, EnDesc: enDesc, EnExtract: enExtract,
+		EnImage: enImage, EnURL: enURL,
 	}, jti, tokenExp)
 	switch {
 	case errors.Is(err, store.ErrAlreadyExists):
@@ -140,13 +153,16 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 	}, nil
 }
 
-// EnsureFromURL resolves a Wikipedia URL to a subject id for the belonging recall
-// step (docs/11 §3): if the figure is already in the pool it returns their id;
-// otherwise it validates (a human with an English Wikipedia page) and ingests
-// them *ungated by the add-token* — recall precedes voting, so the rate limit and
-// belonging demotion are the controls, not the one-per-token allowance. Returns
-// the sentinel errors above. created reports whether a new subject was inserted.
-func (s *Service) EnsureFromURL(ctx context.Context, url string) (id int64, created bool, err error) {
+// EnsureFromURL resolves a Wikipedia URL to a subject id for the belonging
+// recall step (docs/11 §3): if the figure is already in the pool it returns
+// their id; otherwise it validates (a human with an English Wikipedia page)
+// and ingests them *ungated by the add-token* — recall precedes voting, so
+// the rate limit and belonging demotion are the controls, not the
+// one-per-token allowance. Returns the sentinel errors above. created reports
+// whether a new subject was inserted.
+func (s *Service) EnsureFromURL(
+	ctx context.Context, url string,
+) (id int64, created bool, err error) {
 	if strings.TrimSpace(url) == "" {
 		return 0, false, ErrBadInput
 	}
@@ -188,7 +204,8 @@ func (s *Service) EnsureFromURL(ctx context.Context, url string) (id int64, crea
 		langs = []string{"en"}
 	}
 	enName, enDesc, enExtract, enImage := name, "", "", ""
-	enURL := "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
+	enURL := "https://en.wikipedia.org/wiki/" +
+		strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
 	if sum, err := s.fetch.Summary(ctx, "en", facts.EnwikiTitle); err == nil {
 		enName = firstNonEmpty(sum.Name, name)
 		enDesc, enExtract, enImage = sum.Description, sum.Extract, sum.ImageURL
@@ -199,7 +216,8 @@ func (s *Service) EnsureFromURL(ctx context.Context, url string) (id int64, crea
 
 	id, err = s.store.InsertRecalledSubject(ctx, store.NewSubject{
 		QID: qid, Name: name, Langs: langs, DiedAt: facts.DiedAt,
-		EnName: enName, EnDesc: enDesc, EnExtract: enExtract, EnImage: enImage, EnURL: enURL,
+		EnName: enName, EnDesc: enDesc, EnExtract: enExtract,
+		EnImage: enImage, EnURL: enURL,
 	})
 	if errors.Is(err, store.ErrAlreadyExists) {
 		// Raced with a concurrent add — the figure now exists; propose them.

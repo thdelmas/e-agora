@@ -21,8 +21,9 @@ const reachedEnd = ref(false)
 const started = ref(false) // first page has been requested
 
 let offset = 0
-const seen = new Set() // subject ids already shown — guards against dup keys
-                       // if the ranking shifts between page fetches
+// subject ids already shown — guards against dup keys if the ranking shifts
+// between page fetches
+const seen = new Set()
 
 const sentinel = ref(null)
 let observer = null
@@ -60,7 +61,8 @@ async function loadMore() {
 }
 
 // Changing the pool (region / fame tier / deceased) changes the whole result
-// set, so discard the paged-in rows and the seen-id guard and reload from the top.
+// set, so discard the paged-in rows and the seen-id guard and reload from the
+// top.
 function onPoolChange() {
   entries.value = []
   seen.clear()
@@ -70,8 +72,9 @@ function onPoolChange() {
   loadMore()
 }
 
-// Auto-load the next page as the sentinel scrolls into view; the button it sits
-// on is also a manual fallback (and the path taken without IntersectionObserver).
+// Auto-load the next page as the sentinel scrolls into view; the button it
+// sits on is also a manual fallback (and the path taken without
+// IntersectionObserver).
 watch(sentinel, (el, prev) => {
   if (prev) observer?.unobserve(prev)
   if (!el) return
@@ -94,18 +97,30 @@ onUnmounted(() => observer?.disconnect())
   <section class="leaderboard">
     <AccessBanner />
     <h1><span class="crown">🏛️</span> World rankings</h1>
-    <p class="muted">Forged head-to-head from the aggregated preferences of anonymous visitors.</p>
+    <p class="muted">
+      Forged head-to-head from the aggregated preferences of anonymous
+      visitors.
+    </p>
 
     <PoolPicker @change="onPoolChange" />
 
     <template v-if="entries.length">
-      <p class="stat">🗳️ {{ totalVotes.toLocaleString() }} votes cast by visitors worldwide</p>
+      <p class="stat">
+        🗳️ {{ totalVotes.toLocaleString() }} votes cast by visitors
+        worldwide
+      </p>
       <p class="muted legend">
-        Ranked by the <strong>conservative rating</strong> — each figure's rating minus twice its ± uncertainty —
-        so a confident score outranks a higher but shakier one. The line beneath shows the raw rating and its ± spread.
+        Ranked by the <strong>conservative rating</strong> — each figure's
+        rating minus twice its ± uncertainty — so a confident score outranks
+        a higher but shakier one. The line beneath shows the raw rating and
+        its ± spread.
       </p>
       <ol class="rows">
-        <LeaderboardRow v-for="entry in entries" :key="entry.subject.id" :entry="entry" />
+        <LeaderboardRow
+          v-for="entry in entries"
+          :key="entry.subject.id"
+          :entry="entry"
+        />
       </ol>
 
       <button
@@ -119,7 +134,12 @@ onUnmounted(() => observer?.disconnect())
       </button>
       <div v-else class="end-actions">
         <p class="muted end-note">— that's everyone in the agora —</p>
-        <button class="cta" :disabled="!me.canAdd" :title="addTitle" @click="showAdd = true">
+        <button
+          class="cta"
+          :disabled="!me.canAdd"
+          :title="addTitle"
+          @click="showAdd = true"
+        >
           + Add someone
         </button>
       </div>
@@ -127,7 +147,9 @@ onUnmounted(() => observer?.disconnect())
 
     <p v-else-if="loading" class="muted">Tallying the rankings…</p>
     <p v-else-if="error" class="muted">{{ error }}</p>
-    <p v-else-if="started" class="muted">No rankings yet — be the first to cast a vote.</p>
+    <p v-else-if="started" class="muted">
+      No rankings yet — be the first to cast a vote.
+    </p>
 
     <RouterLink to="/" class="cta">← Back to the arena</RouterLink>
 

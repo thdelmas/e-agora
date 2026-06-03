@@ -17,11 +17,21 @@ import (
 type SubjectWriter interface {
 	CountSubjects(ctx context.Context) (int, error)
 	AllSubjectQIDs(ctx context.Context) ([]string, error)
-	UpsertSubject(ctx context.Context, qid, canonicalName, source string, langs []string, diedAt string) (int64, error)
-	UpsertTranslation(ctx context.Context, subjectID int64, lang, name, description, extract, imageURL, wikipediaURL string) error
-	UpsertPageviews(ctx context.Context, subjectID int64, lang string, views int64) error
+	UpsertSubject(
+		ctx context.Context, qid, canonicalName, source string,
+		langs []string, diedAt string,
+	) (int64, error)
+	UpsertTranslation(
+		ctx context.Context, subjectID int64,
+		lang, name, description, extract, imageURL, wikipediaURL string,
+	) error
+	UpsertPageviews(
+		ctx context.Context, subjectID int64, lang string, views int64,
+	) error
 	RefreshGlobalViews(ctx context.Context) error
-	SetSubjectGeo(ctx context.Context, qid, country string, continents []string) error
+	SetSubjectGeo(
+		ctx context.Context, qid, country string, continents []string,
+	) error
 	SubjectQIDsMissingGeo(ctx context.Context) ([]string, error)
 }
 
@@ -30,7 +40,9 @@ type Fetcher interface {
 	Entity(ctx context.Context, qid string) (EntityFacts, error)
 	Summary(ctx context.Context, lang, title string) (Summary, error)
 	LeaderQIDs(ctx context.Context) ([]string, error)
-	Pageviews(ctx context.Context, lang, title string, from, to time.Time) (int64, error)
+	Pageviews(
+		ctx context.Context, lang, title string, from, to time.Time,
+	) (int64, error)
 }
 
 // errSkip marks a candidate as ineligible (not found / not a human / no English
@@ -54,19 +66,26 @@ type PageviewOpts struct {
 
 // Seeder enriches snapshot QIDs from Wikidata/Wikipedia and upserts them.
 type Seeder struct {
-	Fetcher        Fetcher
-	Store          SubjectWriter
-	Logger         *slog.Logger
-	Delay          time.Duration // politeness pause between upstream calls
-	PageviewLangs  []string      // served languages to record pageviews for (empty = skip)
+	Fetcher Fetcher
+	Store   SubjectWriter
+	Logger  *slog.Logger
+	Delay   time.Duration // politeness pause between upstream calls
+	// PageviewLangs are the served languages to record pageviews for
+	// (empty = skip).
+	PageviewLangs  []string
 	PageviewWindow time.Duration // trailing window summed per language
 
-	countryCache map[string]countryInfo // P27 QID → resolved (label, continent), one fetch per country per pass
+	// countryCache maps a P27 QID → resolved (label, continent), one fetch per
+	// country per pass.
+	countryCache map[string]countryInfo
 }
 
 // Run builds a production seeder (live clients) and seeds honoring mode. main
 // calls this, typically in a background goroutine.
-func Run(ctx context.Context, w SubjectWriter, mode string, pv PageviewOpts, logger *slog.Logger) error {
+func Run(
+	ctx context.Context, w SubjectWriter, mode string, pv PageviewOpts,
+	logger *slog.Logger,
+) error {
 	return (&Seeder{
 		Fetcher:        NewClient(),
 		Store:          w,
@@ -92,7 +111,8 @@ func (s *Seeder) Seed(ctx context.Context, mode string) error {
 			return fmt.Errorf("seed: count subjects: %w", err)
 		}
 		if n > 0 {
-			s.Logger.Info("seed: pool already populated, skipping", "subjects", n)
+			s.Logger.Info("seed: pool already populated, skipping",
+				"subjects", n)
 			return nil
 		}
 	case "force":
@@ -110,7 +130,8 @@ func (s *Seeder) Seed(ctx context.Context, mode string) error {
 	var upserted, skipped, failed int
 	for i, it := range items {
 		if err := ctx.Err(); err != nil {
-			s.Logger.Warn("seed: cancelled", "completed", i, "candidates", len(items))
+			s.Logger.Warn("seed: cancelled", "completed", i,
+				"candidates", len(items))
 			return err
 		}
 		switch err := s.seedOne(ctx, it); {
@@ -131,7 +152,8 @@ func (s *Seeder) Seed(ctx context.Context, mode string) error {
 			}
 		}
 	}
-	s.Logger.Info("seed: done", "upserted", upserted, "skipped", skipped, "failed", failed, "candidates", len(items))
+	s.Logger.Info("seed: done", "upserted", upserted, "skipped", skipped,
+		"failed", failed, "candidates", len(items))
 	s.refreshGlobalViews(ctx)
 	return nil
 }
@@ -139,11 +161,15 @@ func (s *Seeder) Seed(ctx context.Context, mode string) error {
 // ScheduleSync runs SyncOnce on a fixed cadence until ctx is cancelled (it is a
 // blocking loop — run it in a goroutine). interval ≤ 0 disables it (returns
 // immediately). The first sync fires after one interval, not at boot: startup
-// seeding already covers a fresh deploy, and re-fetching the whole pool on every
-// (possibly frequent) cold-start would be wasteful. NOTE: this is an in-process
-// timer — on a host that sleeps when idle (e.g. Render free) it only fires while
-// the instance is awake; an always-on host gets a true daily refresh.
-func ScheduleSync(ctx context.Context, w SubjectWriter, interval time.Duration, pv PageviewOpts, logger *slog.Logger) {
+// seeding already covers a fresh deploy, and re-fetching the whole pool on
+// every (possibly frequent) cold-start would be wasteful. NOTE: this is an
+// in-process timer — on a host that sleeps when idle (e.g. Render free) it
+// only fires while the instance is awake; an always-on host gets a true daily
+// refresh.
+func ScheduleSync(
+	ctx context.Context, w SubjectWriter, interval time.Duration,
+	pv PageviewOpts, logger *slog.Logger,
+) {
 	if interval <= 0 {
 		logger.Info("sync: disabled", "interval", interval.String())
 		return
@@ -156,16 +182,20 @@ func ScheduleSync(ctx context.Context, w SubjectWriter, interval time.Duration, 
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := Sync(ctx, w, pv, logger); err != nil && !errors.Is(err, context.Canceled) {
+			err := Sync(ctx, w, pv, logger)
+			if err != nil && !errors.Is(err, context.Canceled) {
 				logger.Error("sync failed", "err", err)
 			}
 		}
 	}
 }
 
-// Sync runs a single refresh pass with production clients. main schedules it via
-// ScheduleSync; it's also the unit a future admin trigger would call.
-func Sync(ctx context.Context, w SubjectWriter, pv PageviewOpts, logger *slog.Logger) error {
+// Sync runs a single refresh pass with production clients. main schedules it
+// via ScheduleSync; it's also the unit a future admin trigger would call.
+func Sync(
+	ctx context.Context, w SubjectWriter, pv PageviewOpts,
+	logger *slog.Logger,
+) error {
 	return (&Seeder{
 		Fetcher:        NewClient(),
 		Store:          w,
@@ -176,158 +206,10 @@ func Sync(ctx context.Context, w SubjectWriter, pv PageviewOpts, logger *slog.Lo
 	}).SyncOnce(ctx)
 }
 
-// BackfillGeo builds a production seeder and resolves region-pool geo
-// (country/continent) for any subject still missing it. main runs it once at
-// startup, after seeding, so a deploy that adds the pools feature to an existing
-// pool populates the region pools immediately instead of waiting on the daily
-// sync (docs/10 §4). Cheap on a healthy pool: a fully-resolved DB yields an empty
-// work-list and zero upstream calls.
-func BackfillGeo(ctx context.Context, w SubjectWriter, logger *slog.Logger) error {
-	return (&Seeder{
-		Fetcher: NewClient(),
-		Store:   w,
-		Logger:  logger,
-		Delay:   150 * time.Millisecond,
-	}).BackfillGeo(ctx)
-}
-
-// BackfillGeo resolves and stores country/continent for subjects whose continent
-// is still NULL (docs/10 §4) — the figures that predate the pools feature, for
-// which seedOne never ran. It re-fetches only those subjects (one Wikidata entity
-// each, with the country lookup cached per pass), so it's far lighter than a full
-// SyncOnce and self-heals existing deployments without a manual re-seed. The
-// per-subject failure mode matches seeding: a transient error is logged and the
-// pass continues; a subject with no resolvable country simply stays unscoped.
-func (s *Seeder) BackfillGeo(ctx context.Context) error {
-	qids, err := s.Store.SubjectQIDsMissingGeo(ctx)
-	if err != nil {
-		return fmt.Errorf("backfill geo: list subjects: %w", err)
-	}
-	if len(qids) == 0 {
-		s.Logger.Info("backfill geo: nothing to resolve")
-		return nil
-	}
-	s.Logger.Info("backfill geo: starting", "subjects", len(qids))
-
-	var resolved, unscoped, failed int
-	for i, qid := range qids {
-		if err := ctx.Err(); err != nil {
-			s.Logger.Warn("backfill geo: cancelled", "completed", i, "subjects", len(qids))
-			return err
-		}
-		facts, err := s.Fetcher.Entity(ctx, qid)
-		if err != nil {
-			failed++
-			s.Logger.Warn("backfill geo: entity failed", "qid", qid, "err", err)
-			continue
-		}
-		var info countryInfo
-		if facts.CountryQID != "" {
-			info = s.resolveCountry(ctx, facts.CountryQID)
-		}
-		if info.label == "" && len(info.continents) == 0 {
-			unscoped++ // no resolvable country/continent — leave NULL
-			continue
-		}
-		if err := s.Store.SetSubjectGeo(ctx, qid, info.label, info.continents); err != nil {
-			failed++
-			s.Logger.Warn("backfill geo: set geo failed", "qid", qid, "err", err)
-			continue
-		}
-		resolved++
-		if s.Delay > 0 {
-			select {
-			case <-time.After(s.Delay):
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-	s.Logger.Info("backfill geo: done", "resolved", resolved, "unscoped", unscoped, "failed", failed)
-	return nil
-}
-
-// SyncOnce re-ingests the whole pool from Wikidata/Wikipedia and discovers
-// newly-elected leaders (docs/06-wikipedia-ingestion.md §Step 5):
-//   - refresh: every subject already in the DB (seed and user-added) is re-fetched
-//     and upserted, so metadata — name, available languages, and date of death
-//     (P570, the deceased filter's signal) — tracks Wikidata over time. The upsert
-//     preserves ratings and vote history.
-//   - discover: the live UN head-of-state/government SPARQL query (§Step 1) adds
-//     any sitting leader not yet in the pool. Best-effort — a WDQS failure logs a
-//     warning and the refresh still runs.
-//
-// Both halves funnel through the same per-candidate path as seeding (seedOne), so
-// eligibility (human + English page) and translation caching behave identically.
-func (s *Seeder) SyncOnce(ctx context.Context) error {
-	existing, err := s.Store.AllSubjectQIDs(ctx)
-	if err != nil {
-		return fmt.Errorf("sync: list subjects: %w", err)
-	}
-
-	seen := make(map[string]bool, len(existing))
-	candidates := make([]seedItem, 0, len(existing))
-	for _, qid := range existing {
-		if qid == "" || seen[qid] {
-			continue
-		}
-		seen[qid] = true
-		candidates = append(candidates, seedItem{QID: qid})
-	}
-	refreshCount := len(candidates) // everything before this index is a known subject
-
-	discovered := 0
-	if leaders, err := s.Fetcher.LeaderQIDs(ctx); err != nil {
-		s.Logger.Warn("sync: leader discovery failed, refreshing existing only", "err", err)
-	} else {
-		for _, qid := range leaders {
-			if qid == "" || seen[qid] {
-				continue
-			}
-			seen[qid] = true
-			candidates = append(candidates, seedItem{QID: qid})
-			discovered++
-		}
-	}
-	s.Logger.Info("sync: starting", "existing", refreshCount, "newly_discovered", discovered)
-
-	var refreshed, added, skipped, failed int
-	for i, it := range candidates {
-		if err := ctx.Err(); err != nil {
-			s.Logger.Warn("sync: cancelled", "completed", i, "candidates", len(candidates))
-			return err
-		}
-		isNew := i >= refreshCount
-		switch err := s.seedOne(ctx, it); {
-		case err == nil:
-			if isNew {
-				added++
-			} else {
-				refreshed++
-			}
-		case errors.Is(err, errSkip):
-			skipped++
-		default:
-			failed++
-			s.Logger.Warn("sync: subject failed", "qid", it.QID, "err", err)
-		}
-		if s.Delay > 0 {
-			select {
-			case <-time.After(s.Delay):
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-	s.Logger.Info("sync: done", "refreshed", refreshed, "added", added, "skipped", skipped, "failed", failed)
-	s.refreshGlobalViews(ctx)
-	return nil
-}
-
 // refreshGlobalViews materializes subjects.global_views from the per-language
-// counts after a pass. Best-effort and a no-op when the pageview pass is disabled
-// (nothing new to sum). A failure is logged, not fatal — stale global_views still
-// yields a usable draw.
+// counts after a pass. Best-effort and a no-op when the pageview pass is
+// disabled (nothing new to sum). A failure is logged, not fatal — stale
+// global_views still yields a usable draw.
 func (s *Seeder) refreshGlobalViews(ctx context.Context) {
 	if len(s.PageviewLangs) == 0 || s.PageviewWindow <= 0 {
 		return
@@ -363,7 +245,9 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		langs = []string{"en"}
 	}
 
-	id, err := s.Store.UpsertSubject(ctx, it.QID, name, "seed", langs, facts.DiedAt)
+	id, err := s.Store.UpsertSubject(
+		ctx, it.QID, name, "seed", langs, facts.DiedAt,
+	)
 	if err != nil {
 		return fmt.Errorf("upsert subject: %w", err)
 	}
@@ -371,20 +255,28 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 	// Region pool axis (docs/10 §4): resolve the subject's country (P27) to a
 	// country label + continent, best-effort (a failure leaves geo NULL).
 	if facts.CountryQID != "" {
-		if info := s.resolveCountry(ctx, facts.CountryQID); info.label != "" || len(info.continents) > 0 {
-			if err := s.Store.SetSubjectGeo(ctx, it.QID, info.label, info.continents); err != nil {
-				s.Logger.Warn("seed: set geo failed", "qid", it.QID, "err", err)
+		info := s.resolveCountry(ctx, facts.CountryQID)
+		if info.label != "" || len(info.continents) > 0 {
+			if err := s.Store.SetSubjectGeo(
+				ctx, it.QID, info.label, info.continents,
+			); err != nil {
+				s.Logger.Warn("seed: set geo failed", "qid", it.QID,
+					"err", err)
 			}
 		}
 	}
 
 	// English translation — the universal R9 fallback content.
-	enURL := "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
+	enURL := "https://en.wikipedia.org/wiki/" +
+		strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
 	if sum, err := s.Fetcher.Summary(ctx, "en", facts.EnwikiTitle); err != nil {
 		// Degraded: the sitelink title still yields a real page (R2 satisfied);
 		// description/image fill in on a later EAGORA_SEED=force.
-		s.Logger.Warn("seed: en summary failed, degraded translation", "qid", it.QID, "err", err)
-		if err := s.Store.UpsertTranslation(ctx, id, "en", name, "", "", "", enURL); err != nil {
+		s.Logger.Warn("seed: en summary failed, degraded translation",
+			"qid", it.QID, "err", err)
+		if err := s.Store.UpsertTranslation(
+			ctx, id, "en", name, "", "", "", enURL,
+		); err != nil {
 			return err
 		}
 	} else {
@@ -392,7 +284,10 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		if url == "" {
 			url = enURL
 		}
-		if err := s.Store.UpsertTranslation(ctx, id, "en", firstNonEmpty(sum.Name, name), sum.Description, sum.Extract, sum.ImageURL, url); err != nil {
+		if err := s.Store.UpsertTranslation(
+			ctx, id, "en", firstNonEmpty(sum.Name, name),
+			sum.Description, sum.Extract, sum.ImageURL, url,
+		); err != nil {
 			return err
 		}
 	}
@@ -405,9 +300,11 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 
 // ingestPageviews records each served language's trailing-window view count for
 // one subject. Best-effort: a per-language fetch/upsert failure is logged and
-// skipped (a missing count weighs as zero, not a seed failure). A no-op when the
-// pass is disabled or the subject has no sitelink in a served language.
-func (s *Seeder) ingestPageviews(ctx context.Context, id int64, facts EntityFacts) {
+// skipped (a missing count weighs as zero, not a seed failure). A no-op when
+// the pass is disabled or the subject has no sitelink in a served language.
+func (s *Seeder) ingestPageviews(
+	ctx context.Context, id int64, facts EntityFacts,
+) {
 	if len(s.PageviewLangs) == 0 || s.PageviewWindow <= 0 {
 		return
 	}
@@ -423,11 +320,13 @@ func (s *Seeder) ingestPageviews(ctx context.Context, id int64, facts EntityFact
 		}
 		views, err := s.Fetcher.Pageviews(ctx, lang, title, from, to)
 		if err != nil {
-			s.Logger.Warn("seed: pageviews fetch failed", "qid", facts.QID, "lang", lang, "err", err)
+			s.Logger.Warn("seed: pageviews fetch failed", "qid", facts.QID,
+				"lang", lang, "err", err)
 			continue
 		}
 		if err := s.Store.UpsertPageviews(ctx, id, lang, views); err != nil {
-			s.Logger.Warn("seed: pageviews upsert failed", "qid", facts.QID, "lang", lang, "err", err)
+			s.Logger.Warn("seed: pageviews upsert failed", "qid", facts.QID,
+				"lang", lang, "err", err)
 		}
 		if s.Delay > 0 {
 			select {

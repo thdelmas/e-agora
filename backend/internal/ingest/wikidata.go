@@ -8,21 +8,32 @@ import (
 	"strings"
 )
 
-// instanceOfHuman is the Wikidata QID for "human" (P31 → Q5), the R8 eligibility
-// check for the pool.
+// instanceOfHuman is the Wikidata QID for "human" (P31 → Q5), the R8
+// eligibility check for the pool.
 const instanceOfHuman = "Q5"
 
 // EntityFacts is the subset of a Wikidata entity ingestion needs.
 type EntityFacts struct {
-	QID           string
-	IsHuman       bool              // P31 contains Q5
-	LabelEn       string            // English label → canonical_name
-	EnwikiTitle   string            // sitelink title for en.wikipedia.org (empty if none)
-	Langs         []string          // Wikipedia language editions this subject has (sorted)
-	Sitelinks     map[string]string // lang → Wikipedia page title (drives the pageview pass without extra fetches, docs/10)
-	DiedAt        string            // P570 date of death, normalized YYYY-MM-DD; "" if living/unknown
-	CountryQID    string            // P27 country of citizenship (first claim) — the region pool axis (docs/10 §4)
-	ContinentQIDs []string          // P30 continents (every item claim, in document order) — set when the entity is a country; the caller picks the first that maps to a known bucket
+	QID     string
+	IsHuman bool   // P31 contains Q5
+	LabelEn string // English label → canonical_name
+	// EnwikiTitle is the sitelink title for en.wikipedia.org (empty if none).
+	EnwikiTitle string
+	// Langs are the Wikipedia language editions this subject has (sorted).
+	Langs []string
+	// Sitelinks maps lang → Wikipedia page title (drives the pageview pass
+	// without extra fetches, docs/10).
+	Sitelinks map[string]string
+	// DiedAt is the P570 date of death, normalized YYYY-MM-DD; "" if
+	// living/unknown.
+	DiedAt string
+	// CountryQID is the P27 country of citizenship (first claim) — the region
+	// pool axis (docs/10 §4).
+	CountryQID string
+	// ContinentQIDs are the P30 continents (every item claim, in document
+	// order) — set when the entity is a country; the caller picks the first
+	// that maps to a known bucket.
+	ContinentQIDs []string
 }
 
 // Entity fetches and parses the Wikidata entity for a QID via the EntityData
@@ -40,7 +51,9 @@ func (c *Client) Entity(ctx context.Context, qid string) (EntityFacts, error) {
 // SitelinkTitle returns the Wikipedia page title for a QID in a given language
 // (used for lazy translation fills, docs/06 §Step 4). Empty if that language
 // edition has no page.
-func (c *Client) SitelinkTitle(ctx context.Context, qid, lang string) (string, error) {
+func (c *Client) SitelinkTitle(
+	ctx context.Context, qid, lang string,
+) (string, error) {
 	u := c.WikidataBase + "/wiki/Special:EntityData/" + qid + ".json"
 	var raw json.RawMessage
 	if err := c.getJSON(ctx, u, &raw); err != nil {
@@ -91,8 +104,8 @@ type entityDoc struct {
 	} `json:"entities"`
 }
 
-// parseEntity extracts EntityFacts from a raw EntityData document. Pure (no I/O)
-// so it is unit-testable against captured fixtures.
+// parseEntity extracts EntityFacts from a raw EntityData document. Pure (no
+// I/O) so it is unit-testable against captured fixtures.
 func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 	var doc entityDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -116,15 +129,16 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 		var v struct {
 			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID == instanceOfHuman {
+		err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v)
+		if err == nil && v.ID == instanceOfHuman {
 			facts.IsHuman = true
 			break
 		}
 	}
-	// P570 (date of death): its mere presence marks the subject deceased; we keep
-	// the first claim that carries a parseable Gregorian date. A "somevalue" snak
-	// (known dead, date unknown) has no datavalue and is left unflagged — rare for
-	// the documented public figures in this pool.
+	// P570 (date of death): its mere presence marks the subject deceased; we
+	// keep the first claim that carries a parseable Gregorian date. A
+	// "somevalue" snak (known dead, date unknown) has no datavalue and is left
+	// unflagged — rare for the documented public figures in this pool.
 	for _, claim := range ent.Claims["P570"] {
 		var v struct {
 			Time string `json:"time"`
@@ -136,16 +150,17 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 			}
 		}
 	}
-	// P27 (country of citizenship) drives the region pool; P30 (continent) is read
-	// when this entity *is* a country, so resolving a person's country yields its
-	// continent in the same fetch.
+	// P27 (country of citizenship) drives the region pool; P30 (continent) is
+	// read when this entity *is* a country, so resolving a person's country
+	// yields its continent in the same fetch.
 	//
-	// P27 picks the *current* citizenship: a leader can carry a former one too — a
-	// post-1991 Russian's P27 lists the Soviet Union (rank normal, P582 end-time)
-	// alongside Russia (rank preferred, no end). We skip deprecated claims and any
-	// with a P582 end-time qualifier, then prefer the "preferred"-rank claim,
-	// falling back to the first normal one — otherwise document order alone would
-	// resolve such figures to the defunct predecessor state.
+	// P27 picks the *current* citizenship: a leader can carry a former one
+	// too — a post-1991 Russian's P27 lists the Soviet Union (rank normal,
+	// P582 end-time) alongside Russia (rank preferred, no end). We skip
+	// deprecated claims and any with a P582 end-time qualifier, then prefer
+	// the "preferred"-rank claim, falling back to the first normal one —
+	// otherwise document order alone would resolve such figures to the defunct
+	// predecessor state.
 	var firstNormalP27 string
 	for _, claim := range ent.Claims["P27"] {
 		if claim.Rank == "deprecated" || len(claim.Qualifiers["P582"]) > 0 {
@@ -154,7 +169,8 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 		var v struct {
 			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err != nil || v.ID == "" {
+		err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v)
+		if err != nil || v.ID == "" {
 			continue
 		}
 		if claim.Rank == "preferred" {
@@ -182,7 +198,8 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 		var v struct {
 			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v); err == nil && v.ID != "" {
+		err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v)
+		if err == nil && v.ID != "" {
 			facts.ContinentQIDs = append(facts.ContinentQIDs, v.ID)
 		}
 	}
@@ -216,10 +233,10 @@ var nonLangWikis = map[string]bool{
 
 // wikidataDate normalizes a Wikidata time value (e.g. "+1990-05-04T00:00:00Z")
 // to a YYYY-MM-DD calendar date. Coarse-precision values zero out the month
-// and/or day ("+1990-00-00T…" for a year-only date); we clamp those to January
-// 1st so the result is a valid SQL DATE that still pins the death year. Negative
-// (BCE) and non-4-digit-year values return false — irrelevant for this pool and
-// not worth the calendar edge cases.
+// and/or day ("+1990-00-00T…" for a year-only date); we clamp those to
+// January 1st so the result is a valid SQL DATE that still pins the death
+// year. Negative (BCE) and non-4-digit-year values return false — irrelevant
+// for this pool and not worth the calendar edge cases.
 func wikidataDate(t string) (string, bool) {
 	if !strings.HasPrefix(t, "+") {
 		return "", false
@@ -238,10 +255,11 @@ func wikidataDate(t string) (string, bool) {
 	return year + "-" + month + "-" + day, true
 }
 
-// wikiLang maps a Wikidata sitelink site (e.g. "enwiki") to a Wikipedia language
-// code ("en"). It returns false for non-Wikipedia sites (…wikisource, …wikiquote)
-// and the non-language wikis above. Wikidata's underscore variants are
-// normalized to hyphen language tags (be_x_old → be-x-old).
+// wikiLang maps a Wikidata sitelink site (e.g. "enwiki") to a Wikipedia
+// language code ("en"). It returns false for non-Wikipedia sites
+// (…wikisource, …wikiquote) and the non-language wikis above. Wikidata's
+// underscore variants are normalized to hyphen language tags
+// (be_x_old → be-x-old).
 func wikiLang(site string) (string, bool) {
 	if !strings.HasSuffix(site, "wiki") || nonLangWikis[site] {
 		return "", false

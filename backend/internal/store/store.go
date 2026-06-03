@@ -45,7 +45,8 @@ func (s *Store) Close() {
 // CountSubjects returns the number of rows in subjects (drives /api/healthz).
 func (s *Store) CountSubjects(ctx context.Context) (int, error) {
 	var n int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM subjects`).Scan(&n); err != nil {
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM subjects`).Scan(&n); err != nil {
 		return 0, fmt.Errorf("count subjects: %w", err)
 	}
 	return n, nil

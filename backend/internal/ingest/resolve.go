@@ -34,7 +34,9 @@ func ParseWikipediaURL(raw string) (lang, title string, ok bool) {
 }
 
 // ResolveWikipediaURL resolves an article URL to its Wikidata QID.
-func (c *Client) ResolveWikipediaURL(ctx context.Context, raw string) (string, error) {
+func (c *Client) ResolveWikipediaURL(
+	ctx context.Context, raw string,
+) (string, error) {
 	lang, title, ok := ParseWikipediaURL(raw)
 	if !ok {
 		return "", ErrBadInput
@@ -42,9 +44,11 @@ func (c *Client) ResolveWikipediaURL(ctx context.Context, raw string) (string, e
 	return c.ResolveTitleToQID(ctx, lang, title)
 }
 
-// ResolveTitleToQID maps a (lang, title) to a QID via the pageprops API. Returns
-// ErrNotFound when the title has no page / no linked Wikidata item.
-func (c *Client) ResolveTitleToQID(ctx context.Context, lang, title string) (string, error) {
+// ResolveTitleToQID maps a (lang, title) to a QID via the pageprops API.
+// Returns ErrNotFound when the title has no page / no linked Wikidata item.
+func (c *Client) ResolveTitleToQID(
+	ctx context.Context, lang, title string,
+) (string, error) {
 	q := url.Values{
 		"action":    {"query"},
 		"prop":      {"pageprops"},

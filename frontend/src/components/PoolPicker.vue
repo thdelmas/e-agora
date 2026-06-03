@@ -1,8 +1,9 @@
 <script setup>
-// The visitor's pool selector (docs/10 §4): geographic scope, fame tier and the
-// living/deceased status. It writes the shared store and emits `change` so the
-// host view reloads the matchup or leaderboard from the newly-scoped pool. The
-// ranking itself is one global scale — these only filter which figures are drawn.
+// The visitor's pool selector (docs/10 §4): geographic scope, fame tier and
+// the living/deceased status. It writes the shared store and emits `change` so
+// the host view reloads the matchup or leaderboard from the newly-scoped pool.
+// The ranking itself is one global scale — these only filter which figures
+// are drawn.
 import { ref, computed, onMounted } from 'vue'
 import {
   REGIONS,
@@ -20,9 +21,10 @@ import { api } from '../api/client'
 const emit = defineEmits(['change'])
 defineProps({ disabled: { type: Boolean, default: false } })
 
-// Continents are a fixed list; countries are whichever ones have enough subjects
-// to draw from (loaded once). Geographic scope is one axis at two zoom levels, so
-// the picker is a single select: a country value wins over a continent when set.
+// Continents are a fixed list; countries are whichever ones have enough
+// subjects to draw from (loaded once). Geographic scope is one axis at two
+// zoom levels, so the picker is a single select: a country value wins over a
+// continent when set.
 const continents = REGIONS.filter((r) => r)
 const countries = ref([])
 const scope = computed(() => poolCountry.value || poolRegion.value || '')
@@ -37,8 +39,9 @@ onMounted(async () => {
 })
 
 // One handler for the whole geographic axis: a known continent sets the region
-// (clearing any country); anything else is a country (clearing the region); the
-// empty value is the whole world. Choosing one zoom level always clears the other.
+// (clearing any country); anything else is a country (clearing the region);
+// the empty value is the whole world. Choosing one zoom level always clears
+// the other.
 function onScope(e) {
   const val = e.target.value
   if (!val) {
@@ -81,12 +84,22 @@ function onDeceased(e) {
     </label>
 
     <label class="pool-toggle">
-      <input type="checkbox" :checked="poolFameTop" :disabled="disabled" @change="onFame" />
+      <input
+        type="checkbox"
+        :checked="poolFameTop"
+        :disabled="disabled"
+        @change="onFame"
+      />
       ⭐ Famous only
     </label>
 
     <label class="pool-toggle">
-      <input type="checkbox" :checked="includeDeceased" :disabled="disabled" @change="onDeceased" />
+      <input
+        type="checkbox"
+        :checked="includeDeceased"
+        :disabled="disabled"
+        @change="onDeceased"
+      />
       Include figures who have died
     </label>
   </div>

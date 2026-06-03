@@ -12,10 +12,11 @@ import (
 
 // Config holds all tunables for the backend. Fields are populated by Load.
 type Config struct {
-	Addr          string        // EAGORA_ADDR
-	DatabaseURL   string        // DATABASE_URL
-	Seed          string        // EAGORA_SEED: auto|off|force
-	SyncInterval  time.Duration // EAGORA_SYNC_INTERVAL: cadence of the Wikidata refresh (off to disable)
+	Addr        string // EAGORA_ADDR
+	DatabaseURL string // DATABASE_URL
+	Seed        string // EAGORA_SEED: auto|off|force
+	// EAGORA_SYNC_INTERVAL: cadence of the Wikidata refresh (off to disable).
+	SyncInterval  time.Duration
 	FallbackLang  string        // EAGORA_FALLBACK_LANG
 	TokenSecret   string        // EAGORA_TOKEN_SECRET
 	AccessTTL     time.Duration // EAGORA_ACCESS_TTL
@@ -25,25 +26,47 @@ type Config struct {
 	VoteRate      float64       // EAGORA_VOTE_RATE (tokens/sec)
 	HumanProvider string        // EAGORA_HUMAN_PROVIDER: dissent|turnstile|pow
 	HumanTTL      time.Duration // EAGORA_HUMAN_TTL
-	StaticDir     string        // EAGORA_STATIC_DIR: serve the built SPA same-origin (prod)
-	CORSOrigin    string        // EAGORA_CORS_ORIGIN (dev only)
-	PublicURL     string        // EAGORA_PUBLIC_URL: canonical base URL for SEO (no trailing slash)
+	// EAGORA_STATIC_DIR: serve the built SPA same-origin (prod).
+	StaticDir  string
+	CORSOrigin string // EAGORA_CORS_ORIGIN (dev only)
+	// EAGORA_PUBLIC_URL: canonical base URL for SEO (no trailing slash).
+	PublicURL string
 
 	// Recognition & matchup pairing (docs/10-recognition-and-pools.md).
-	PageviewLangs  []string      // EAGORA_PAGEVIEW_LANGS: served languages to record pageviews for (off/empty disables)
-	PageviewWindow time.Duration // EAGORA_PAGEVIEW_WINDOW: trailing window summed per language
-	RecoBase       float64       // EAGORA_RECO_BASE: weight on sitelink count (graceful fallback when pageviews are absent)
-	RecoAlpha      float64       // EAGORA_RECO_ALPHA: weight on local attention (views in the visitor's language)
-	RecoBeta       float64       // EAGORA_RECO_BETA: weight on global fame (views across all languages)
-	RecoGamma      float64       // EAGORA_RECO_GAMMA: weight on sphere affinity (the visitor language's share of attention)
-	RecoRegion     float64       // EAGORA_RECO_REGION: additive boost for a subject in the visitor's chosen home region (soft bias, not a filter)
-	RecoCountry    float64       // EAGORA_RECO_COUNTRY: additive boost for a subject in the visitor's home country (soft bias, finer/stronger than region)
-	DiscoveryRate  float64       // EAGORA_DISCOVERY_RATE: fraction of matchups drawing a coverage-biased challenger
-	FameTierPct    float64       // EAGORA_FAME_TIER_PCT: global_views percentile cutoff for the "famous only" pool (0.7 = top 30%)
+
+	// EAGORA_PAGEVIEW_LANGS: served languages to record pageviews for
+	// (off/empty disables).
+	PageviewLangs []string
+	// EAGORA_PAGEVIEW_WINDOW: trailing window summed per language.
+	PageviewWindow time.Duration
+	// EAGORA_RECO_BASE: weight on sitelink count (graceful fallback when
+	// pageviews are absent).
+	RecoBase float64
+	// EAGORA_RECO_ALPHA: weight on local attention (views in the visitor's
+	// language).
+	RecoAlpha float64
+	// EAGORA_RECO_BETA: weight on global fame (views across all languages).
+	RecoBeta float64
+	// EAGORA_RECO_GAMMA: weight on sphere affinity (the visitor language's
+	// share of attention).
+	RecoGamma float64
+	// EAGORA_RECO_REGION: additive boost for a subject in the visitor's chosen
+	// home region (soft bias, not a filter).
+	RecoRegion float64
+	// EAGORA_RECO_COUNTRY: additive boost for a subject in the visitor's home
+	// country (soft bias, finer/stronger than region).
+	RecoCountry float64
+	// EAGORA_DISCOVERY_RATE: fraction of matchups drawing a coverage-biased
+	// challenger.
+	DiscoveryRate float64
+	// EAGORA_FAME_TIER_PCT: global_views percentile cutoff for the "famous
+	// only" pool (0.7 = top 30%).
+	FameTierPct float64
 }
 
 // defaultPageviewLangs are the ~20 largest / most-served Wikipedia editions —
-// broad coverage of the world's major language spheres without fetching all 300.
+// broad coverage of the world's major language spheres without fetching all
+// 300.
 var defaultPageviewLangs = []string{
 	"en", "es", "fr", "de", "ru", "pt", "it", "zh", "ja", "ar",
 	"nl", "pl", "fa", "tr", "id", "uk", "ko", "hi", "sv", "vi",
@@ -52,8 +75,9 @@ var defaultPageviewLangs = []string{
 // Load reads configuration from the environment, applying documented defaults.
 func Load() Config {
 	return Config{
-		Addr:          env("EAGORA_ADDR", ":8080"),
-		DatabaseURL:   env("DATABASE_URL", "postgres://eagora:eagora@localhost:5432/eagora?sslmode=disable"),
+		Addr: env("EAGORA_ADDR", ":8080"),
+		DatabaseURL: env("DATABASE_URL",
+			"postgres://eagora:eagora@localhost:5432/eagora?sslmode=disable"),
 		Seed:          env("EAGORA_SEED", "auto"),
 		SyncInterval:  envSyncInterval("EAGORA_SYNC_INTERVAL", 24*time.Hour),
 		FallbackLang:  env("EAGORA_FALLBACK_LANG", "en"),
@@ -71,24 +95,26 @@ func Load() Config {
 
 		PageviewLangs:  envList("EAGORA_PAGEVIEW_LANGS", defaultPageviewLangs),
 		PageviewWindow: envDuration("EAGORA_PAGEVIEW_WINDOW", 90*24*time.Hour),
-		// Defaults: local attention (α) and global fame (β) pull equally hard — the
-		// two recognition levers — with a sphere boost (γ) and a small sitelink
-		// floor (base) that keeps every subject drawable and degrades to the old
-		// langs-count weighting before pageviews land. Tune against real pool data
-		// (the per-language pageview spread) once it's flowing.
+		// Defaults: local attention (α) and global fame (β) pull equally
+		// hard — the two recognition levers — with a sphere boost (γ) and a
+		// small sitelink floor (base) that keeps every subject drawable and
+		// degrades to the old langs-count weighting before pageviews land.
+		// Tune against real pool data (the per-language pageview spread) once
+		// it's flowing.
 		RecoBase:  envFloat("EAGORA_RECO_BASE", 1.0),
 		RecoAlpha: envFloat("EAGORA_RECO_ALPHA", 3.0),
 		RecoBeta:  envFloat("EAGORA_RECO_BETA", 3.0),
 		RecoGamma: envFloat("EAGORA_RECO_GAMMA", 1.5),
-		// A soft home-region nudge: the visitor's onboarding-chosen region adds a
-		// flat boost to in-region subjects' recognition score (docs/10 §4). Flat and
-		// additive in log-space R, so it lifts modest *local* figures meaningfully
-		// (R≈5 → ×1.5) while barely moving the globally-famous (R≈20 → ×1.1) who
-		// don't need it — and it never *excludes* anyone, so the cross-region
-		// discovery slot still bridges the pools and the one Glicko scale stays
-		// comparable. A hard region filter (the PoolPicker) is the opt-in instead.
-		// RecoCountry is the same nudge at country granularity (a sharper proxy for
-		// "people I'd recognize"), so it leans a touch harder than the continent one.
+		// A soft home-region nudge: the visitor's onboarding-chosen region
+		// adds a flat boost to in-region subjects' recognition score (docs/10
+		// §4). Flat and additive in log-space R, so it lifts modest *local*
+		// figures meaningfully (R≈5 → ×1.5) while barely moving the
+		// globally-famous (R≈20 → ×1.1) who don't need it — and it never
+		// *excludes* anyone, so the cross-region discovery slot still bridges
+		// the pools and the one Glicko scale stays comparable. A hard region
+		// filter (the PoolPicker) is the opt-in instead. RecoCountry is the
+		// same nudge at country granularity (a sharper proxy for "people I'd
+		// recognize"), so it leans a touch harder than the continent one.
 		RecoRegion:    envFloat("EAGORA_RECO_REGION", 2.5),
 		RecoCountry:   envFloat("EAGORA_RECO_COUNTRY", 3.5),
 		DiscoveryRate: envFloat("EAGORA_DISCOVERY_RATE", 0.15),
@@ -98,7 +124,8 @@ func Load() Config {
 
 // envList parses a comma-separated list (e.g. "en,fr,de"), trimming and
 // lowercasing each entry and dropping empties. "off"/"none"/"disabled" (and an
-// all-empty value) return an empty slice — the caller treats that as disabled.
+// all-empty value) return an empty slice — the caller treats that as
+// disabled.
 func envList(key string, fallback []string) []string {
 	v, ok := os.LookupEnv(key)
 	if !ok || v == "" {
@@ -152,8 +179,8 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 }
 
 // envSyncInterval parses the Wikidata-refresh cadence as a Go duration, mapping
-// "off"/"none"/"disabled" (and any zero/negative value) to 0, which disables the
-// scheduler. An unparseable value falls back to the default.
+// "off"/"none"/"disabled" (and any zero/negative value) to 0, which disables
+// the scheduler. An unparseable value falls back to the default.
 func envSyncInterval(key string, fallback time.Duration) time.Duration {
 	v, ok := os.LookupEnv(key)
 	if !ok || v == "" {

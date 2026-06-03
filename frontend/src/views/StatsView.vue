@@ -46,11 +46,21 @@ const addedSeries = computed(() => seriesOf('added'))
 const windowTotals = computed(() => {
   const d = data.value?.daily || []
   const sum = (k) => d.reduce((a, r) => a + r[k], 0)
-  return { votes: sum('votes'), visitors: sum('visitors'), voters: sum('voters'), added: sum('added') }
+  return {
+    votes: sum('votes'),
+    visitors: sum('visitors'),
+    voters: sum('voters'),
+    added: sum('added'),
+  }
 })
 
 const totals = computed(() => data.value?.totals || {})
-const isEmpty = computed(() => data.value && (totals.value.votes || 0) === 0 && (totals.value.visitors || 0) === 0)
+const isEmpty = computed(
+  () =>
+    data.value &&
+    (totals.value.votes || 0) === 0 &&
+    (totals.value.visitors || 0) === 0,
+)
 
 function fmt(n) {
   return (n ?? 0).toLocaleString()
@@ -61,8 +71,9 @@ function fmt(n) {
   <section class="stats">
     <h1><span class="crown">📊</span> The agora in numbers</h1>
     <p class="muted intro">
-      A live, public look at the arena. Every figure below is an aggregate count over
-      <strong>anonymous</strong> activity — never anything that could identify a visitor.
+      A live, public look at the arena. Every figure below is an aggregate
+      count over <strong>anonymous</strong> activity — never anything that
+      could identify a visitor.
     </p>
 
     <template v-if="data">
@@ -90,7 +101,9 @@ function fmt(n) {
         </div>
       </div>
 
-      <p v-if="isEmpty" class="empty-note">No activity yet — be the first to step into the arena and vote.</p>
+      <p v-if="isEmpty" class="empty-note">
+        No activity yet — be the first to step into the arena and vote.
+      </p>
 
       <!-- Time-window picker -->
       <div class="window-picker" role="group" aria-label="Time window">
@@ -111,20 +124,37 @@ function fmt(n) {
         <figure class="chart-card">
           <figcaption>
             <h2>🗳️ Votes over time</h2>
-            <span class="chart-sub">{{ fmt(windowTotals.votes) }} in the last {{ days }} days</span>
+            <span class="chart-sub">
+              {{ fmt(windowTotals.votes) }} in the last {{ days }} days
+            </span>
           </figcaption>
-          <TimeSeriesChart :series="votesSeries" mode="bars" color="#0f9d8e" unit="votes" label="Votes per day" />
+          <TimeSeriesChart
+            :series="votesSeries"
+            mode="bars"
+            color="#0f9d8e"
+            unit="votes"
+            label="Votes per day"
+          />
         </figure>
 
         <figure class="chart-card">
           <figcaption>
             <h2>👥 Visitors over time</h2>
-            <span class="chart-sub">{{ fmt(windowTotals.visitors) }} new in the last {{ days }} days</span>
+            <span class="chart-sub">
+              {{ fmt(windowTotals.visitors) }} new in the last {{ days }} days
+            </span>
           </figcaption>
-          <TimeSeriesChart :series="visitorsSeries" mode="area" color="#ef7a45" unit="visitors" label="New visitors per day" />
+          <TimeSeriesChart
+            :series="visitorsSeries"
+            mode="area"
+            color="#ef7a45"
+            unit="visitors"
+            label="New visitors per day"
+          />
           <p class="chart-note">
-            A “visitor” is an anonymous browser the first time we see it — counted with no IP, account, or
-            identity. It reflects new visitors per day, not raw page views (which we don’t log).
+            A “visitor” is an anonymous browser the first time we see it —
+            counted with no IP, account, or identity. It reflects new visitors
+            per day, not raw page views (which we don’t log).
           </p>
         </figure>
 
@@ -133,22 +163,37 @@ function fmt(n) {
             <h2>✋ Active voters per day</h2>
             <span class="chart-sub">distinct anonymous voters each day</span>
           </figcaption>
-          <TimeSeriesChart :series="votersSeries" mode="area" color="#1f6e4c" unit="voters" label="Active voters per day" />
+          <TimeSeriesChart
+            :series="votersSeries"
+            mode="area"
+            color="#1f6e4c"
+            unit="voters"
+            label="Active voters per day"
+          />
         </figure>
 
         <figure class="chart-card">
           <figcaption>
             <h2>➕ People added per day</h2>
-            <span class="chart-sub">{{ fmt(windowTotals.added) }} added in the last {{ days }} days</span>
+            <span class="chart-sub">
+              {{ fmt(windowTotals.added) }} added in the last {{ days }} days
+            </span>
           </figcaption>
-          <TimeSeriesChart :series="addedSeries" mode="bars" color="#d8a23a" unit="added" label="People added per day" />
+          <TimeSeriesChart
+            :series="addedSeries"
+            mode="bars"
+            color="#d8a23a"
+            unit="added"
+            label="People added per day"
+          />
         </figure>
       </div>
 
       <p class="privacy-note stats-privacy">
-        🔒 <strong>Privacy by design.</strong> These charts are built only from anonymous counts —
-        choices, sessions, and pool growth. We never record who you are, where you are, or your IP. There is
-        nothing here, and nothing in the database, that can be traced back to a person.
+        🔒 <strong>Privacy by design.</strong> These charts are built only
+        from anonymous counts — choices, sessions, and pool growth. We never
+        record who you are, where you are, or your IP. There is nothing here,
+        and nothing in the database, that can be traced back to a person.
       </p>
     </template>
 

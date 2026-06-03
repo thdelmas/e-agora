@@ -1,18 +1,19 @@
 // Package ranking implements the Glicko-2 rating update applied on every vote
 // (docs/05-ranking.md). Each vote is treated as a one-game rating period for
 // both subjects: the winner and loser are each updated against the other's
-// pre-vote state. It is a pure function over two ratings — no I/O — so it is
-// trivially unit-testable and called inside the vote transaction.
+// pre-vote state. It is a pure function over two ratings — no I/O — so it
+// is trivially unit-testable and called inside the vote transaction.
 //
 // Glicko-2 tracks three numbers per subject instead of Elo's one:
 //   - R   the rating (same ~1500 display scale as Elo);
-//   - RD  the rating deviation — how unsure we are of R (shrinks with evidence);
+//   - RD  the rating deviation — how unsure we are of R (shrinks with
+//     evidence);
 //   - σ   the volatility — how erratic the subject's results have been.
 //
 // RD is the payoff: an unproven subject (high RD) moves fast and is ranked
 // conservatively, while a settled one (low RD) barely twitches. Unlike Elo,
-// total rating is NOT conserved — the winner's gain need not equal the loser's
-// loss, because each moves in proportion to its own uncertainty.
+// total rating is NOT conserved — the winner's gain need not equal the
+// loser's loss, because each moves in proportion to its own uncertainty.
 package ranking
 
 import "math"
@@ -25,8 +26,9 @@ const (
 	// DefaultVolatility is a new subject's volatility (Glickman's default).
 	DefaultVolatility = 0.06
 
-	// tau constrains how much volatility can change per period. Smaller = steadier
-	// ratings; Glickman suggests 0.3–1.2. 0.5 suits our noisy, opinion-based votes.
+	// tau constrains how much volatility can change per period. Smaller =
+	// steadier ratings; Glickman suggests 0.3–1.2. 0.5 suits our noisy,
+	// opinion-based votes.
 	tau = 0.5
 	// glickoScale converts between the display scale (R, RD) and Glicko-2's
 	// internal scale (μ, φ): μ = (R − 1500)/glickoScale, φ = RD/glickoScale.

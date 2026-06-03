@@ -5,7 +5,8 @@ import (
 	"net/http"
 )
 
-// errorEnvelope is the shared non-2xx body shape (docs/04-api.md §Error envelope).
+// errorEnvelope is the shared non-2xx body shape
+// (docs/04-api.md §Error envelope).
 type errorEnvelope struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`

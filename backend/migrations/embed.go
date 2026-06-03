@@ -1,5 +1,5 @@
-// Package migrations embeds the SQL schema files so the server can apply them on
-// startup without external files (docs/02-architecture.md §Migrations). The
+// Package migrations embeds the SQL schema files so the server can apply them
+// on startup without external files (docs/02-architecture.md §Migrations). The
 // embedded runner that tracks schema_migrations lands in M1.
 package migrations
 

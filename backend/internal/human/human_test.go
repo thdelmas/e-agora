@@ -62,7 +62,9 @@ func TestVerify_DissentPasses_AffirmFails(t *testing.T) {
 	if pass == "yes" {
 		wrong = "no"
 	}
-	if ok, reason := c.Verify(ch.ChallengeID, wrong, Timing{DecideMs: 1500}); ok || reason != "try_again" {
+	if ok, reason := c.Verify(
+		ch.ChallengeID, wrong, Timing{DecideMs: 1500},
+	); ok || reason != "try_again" {
 		t.Errorf("wrong answer: ok=%v reason=%q, want try_again", ok, reason)
 	}
 }
@@ -73,7 +75,9 @@ func TestVerify_Timing(t *testing.T) {
 	pass := passOf(t, ch)
 
 	// Instant click is rejected even with the right answer.
-	if ok, reason := c.Verify(ch.ChallengeID, pass, Timing{Instant: true}); ok || reason != "too_fast" {
+	if ok, reason := c.Verify(
+		ch.ChallengeID, pass, Timing{Instant: true},
+	); ok || reason != "too_fast" {
 		t.Errorf("instant: ok=%v reason=%q, want too_fast", ok, reason)
 	}
 	// Implausibly fast is rejected.
@@ -88,17 +92,25 @@ func TestVerify_Timing(t *testing.T) {
 
 func TestVerify_Invalid(t *testing.T) {
 	c := newChecker(t)
-	if ok, reason := c.Verify("garbage", "no", Timing{DecideMs: 1000}); ok || reason != "invalid" {
-		t.Errorf("garbage challenge: ok=%v reason=%q, want invalid", ok, reason)
+	if ok, reason := c.Verify(
+		"garbage", "no", Timing{DecideMs: 1000},
+	); ok || reason != "invalid" {
+		t.Errorf("garbage challenge: ok=%v reason=%q, want invalid",
+			ok, reason)
 	}
 }
 
 func TestVerify_Expired(t *testing.T) {
 	c := newChecker(t)
 	// Hand-build an expired, validly-signed challenge (white-box).
-	payload, _ := json.Marshal(envelope{Kind: "oath", Pass: "no", Nonce: "n", Exp: time.Now().Add(-time.Minute).Unix()})
+	payload, _ := json.Marshal(envelope{
+		Kind: "oath", Pass: "no", Nonce: "n",
+		Exp: time.Now().Add(-time.Minute).Unix(),
+	})
 	id := token.Sign(secret, payload)
-	if ok, reason := c.Verify(id, "no", Timing{DecideMs: 1000}); ok || reason != "expired" {
+	if ok, reason := c.Verify(
+		id, "no", Timing{DecideMs: 1000},
+	); ok || reason != "expired" {
 		t.Errorf("expired: ok=%v reason=%q, want expired", ok, reason)
 	}
 }

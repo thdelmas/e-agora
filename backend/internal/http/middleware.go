@@ -25,10 +25,10 @@ func sessionFrom(ctx context.Context) model.Session {
 	return s
 }
 
-// sessionMW reads the anonymous session cookie (minting one if absent), refreshes
-// it in the store, and attaches the session to the request context. This is NOT
-// authentication (R3) — it identifies a browser to count contributions and carry
-// the human-verified status.
+// sessionMW reads the anonymous session cookie (minting one if absent),
+// refreshes it in the store, and attaches the session to the request context.
+// This is NOT authentication (R3) — it identifies a browser to count
+// contributions and carry the human-verified status.
 func (h *handlers) sessionMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := ""
@@ -38,7 +38,8 @@ func (h *handlers) sessionMW(next http.Handler) http.Handler {
 		if id == "" {
 			newID, err := token.NewID()
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "internal", "Could not start a session.")
+				writeError(w, http.StatusInternalServerError, "internal",
+					"Could not start a session.")
 				return
 			}
 			id = newID
@@ -47,15 +48,21 @@ func (h *handlers) sessionMW(next http.Handler) http.Handler {
 		sess, err := h.store.TouchSession(r.Context(), id)
 		if err != nil {
 			h.logger.Error("session touch", "err", err)
-			writeError(w, http.StatusInternalServerError, "internal", "Session error.")
+			writeError(w, http.StatusInternalServerError, "internal",
+				"Session error.")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionKey, sess)))
+		ctx := context.WithValue(r.Context(), sessionKey, sess)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// setCookie writes an httpOnly, SameSite=Lax cookie; Secure when served over TLS.
-func setCookie(w http.ResponseWriter, r *http.Request, name, value string, maxAge time.Duration) {
+// setCookie writes an httpOnly, SameSite=Lax cookie; Secure when served over
+// TLS.
+func setCookie(
+	w http.ResponseWriter, r *http.Request, name, value string,
+	maxAge time.Duration,
+) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,

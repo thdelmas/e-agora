@@ -3,16 +3,23 @@ package ingest
 import "testing"
 
 // parseSearchPages should restore relevance order, attach thumbnails/QIDs, and
-// drop pages that can't be addable people (disambiguation, or no Wikidata item).
+// drop pages that can't be addable people (disambiguation, or no Wikidata
+// item).
 func TestParseSearchPages(t *testing.T) {
 	raw := []byte(`{"query":{"pages":{
-		"111":{"index":2,"title":"Pierre Curie","description":"physicist","fullurl":"https://en.wikipedia.org/wiki/Pierre_Curie",
-			"thumbnail":{"source":"//upload.wikimedia.org/p.jpg"},"pageprops":{"wikibase_item":"Q37463"}},
-		"222":{"index":1,"title":"Marie Curie","description":"physicist and chemist","fullurl":"https://en.wikipedia.org/wiki/Marie_Curie",
+		"111":{"index":2,"title":"Pierre Curie","description":"physicist",` +
+		`"fullurl":"https://en.wikipedia.org/wiki/Pierre_Curie",
+			"thumbnail":{"source":"//upload.wikimedia.org/p.jpg"},` +
+		`"pageprops":{"wikibase_item":"Q37463"}},
+		"222":{"index":1,"title":"Marie Curie",` +
+		`"description":"physicist and chemist",` +
+		`"fullurl":"https://en.wikipedia.org/wiki/Marie_Curie",
 			"pageprops":{"wikibase_item":"Q7186"}},
-		"333":{"index":3,"title":"Curie (disambiguation)","fullurl":"https://en.wikipedia.org/wiki/Curie",
+		"333":{"index":3,"title":"Curie (disambiguation)",` +
+		`"fullurl":"https://en.wikipedia.org/wiki/Curie",
 			"pageprops":{"wikibase_item":"Q223850","disambiguation":""}},
-		"444":{"index":4,"title":"Some stub","fullurl":"https://en.wikipedia.org/wiki/Stub","pageprops":{}}
+		"444":{"index":4,"title":"Some stub",` +
+		`"fullurl":"https://en.wikipedia.org/wiki/Stub","pageprops":{}}
 	}}}`)
 
 	cands, err := parseSearchPages(raw)
@@ -20,7 +27,10 @@ func TestParseSearchPages(t *testing.T) {
 		t.Fatalf("parseSearchPages: %v", err)
 	}
 	if len(cands) != 2 {
-		t.Fatalf("got %d candidates, want 2 (disambiguation + item-less pages dropped)", len(cands))
+		t.Fatalf(
+			"got %d candidates, want 2 "+
+				"(disambiguation + item-less pages dropped)",
+			len(cands))
 	}
 	// Relevance order: index 1 (Marie) before index 2 (Pierre).
 	if cands[0].qid != "Q7186" || cands[0].res.Title != "Marie Curie" {

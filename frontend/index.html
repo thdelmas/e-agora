@@ -11,21 +11,20 @@
     <link rel="manifest" href="/site.webmanifest" />
 
     <title>e-agora — the people decide</title>
-    <meta name="description" content="A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora." />
+    <meta name="description" content="A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora." /> <!-- qa:allow-long: single attribute value -->
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" /> <!-- qa:allow-long: web-font URL is one unbreakable token -->
 
-    <!-- Canonical + Open Graph + Twitter Card tags are injected per route by the
-         backend just before the closing head tag (see backend/internal/http/spa.go).
-         Do NOT write the literal closing-head token in this comment: Vite's build
-         injects the bundled script/stylesheet right before the first match it finds
-         and would otherwise place them inside this comment, leaving a blank page. The
-         Vite dev server serves this file as-is, so the SEO tags are absent in dev. -->
+    <!-- Canonical + Open Graph + Twitter Card tags are injected per route by
+         the backend just before the closing head tag (see
+         backend/internal/http/spa.go). Do NOT write the literal closing-head
+         token in this comment: Vite's build injects the bundled
+         script/stylesheet right before the first match it finds and would
+         otherwise place them inside this comment, leaving a blank page. The
+         Vite dev server serves this file as-is, so the SEO tags are absent in
+         dev. -->
   </head>
   <body>
     <div id="app"></div>

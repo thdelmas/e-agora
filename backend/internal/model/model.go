@@ -18,20 +18,24 @@ type Subject struct {
 	Wins           int
 	Losses         int
 	Comparisons    int
-	GlobalViews    int64 // trailing-window Wikipedia pageviews summed across languages (global-fame lever, docs/10)
-	Active         bool
-	DiedAt         *time.Time // date of death (Wikidata P570); nil = living or unknown
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// trailing-window Wikipedia pageviews summed across languages
+	// (global-fame lever, docs/10)
+	GlobalViews int64
+	Active      bool
+	// date of death (Wikidata P570); nil = living or unknown
+	DiedAt    *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Translation is per-language display content, lazily cached from Wikipedia.
 type Translation struct {
-	SubjectID    int64
-	Lang         string
-	Name         string
-	Description  string
-	Extract      string // Wikipedia lead paragraph (shown inline on the matchup card)
+	SubjectID   int64
+	Lang        string
+	Name        string
+	Description string
+	// Wikipedia lead paragraph (shown inline on the matchup card)
+	Extract      string
 	ImageURL     string
 	WikipediaURL string
 	FetchedAt    time.Time
@@ -66,8 +70,8 @@ type Session struct {
 
 // Stats is an aggregate, privacy-preserving snapshot of public activity
 // (docs/04-api.md §GET /api/stats). Every field is a count over anonymous,
-// non-identifying data — there are no per-visitor rows, no PII, no geography of
-// visitors (their IP is never stored). It is safe to serve to anyone.
+// non-identifying data — there are no per-visitor rows, no PII, no geography
+// of visitors (their IP is never stored). It is safe to serve to anyone.
 type Stats struct {
 	Totals StatsTotals
 	Daily  []DailyStat
@@ -75,9 +79,10 @@ type Stats struct {
 
 // StatsTotals are the all-time headline counts.
 type StatsTotals struct {
-	Votes           int // preferences recorded, all-time
-	Voters          int // distinct anonymous sessions that have ever voted
-	Visitors        int // anonymous sessions ever created (≈ unique browsers/devices)
+	Votes  int // preferences recorded, all-time
+	Voters int // distinct anonymous sessions that have ever voted
+	// anonymous sessions ever created (≈ unique browsers/devices)
+	Visitors        int
 	Subjects        int // active people in the pool
 	UserContributed int // subjects added by visitors (source='user')
 }
@@ -103,6 +108,8 @@ type SubjectPublic struct {
 	Extract      string `json:"extract,omitempty"`
 	ImageURL     string `json:"imageUrl,omitempty"`
 	WikipediaURL string `json:"wikipediaUrl"`
-	Deceased     bool   `json:"deceased,omitempty"` // has a recorded date of death (P570)
-	DiedYear     int    `json:"diedYear,omitempty"` // year of death, for display next to the name
+	// has a recorded date of death (P570)
+	Deceased bool `json:"deceased,omitempty"`
+	// year of death, for display next to the name
+	DiedYear int `json:"diedYear,omitempty"`
 }
