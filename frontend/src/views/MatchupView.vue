@@ -2,10 +2,19 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client'
-import { applyVote, refreshMe, poolQuery } from '../store'
+import {
+  applyVote,
+  refreshMe,
+  poolQuery,
+  poolKeyOf,
+  poolLabel,
+  hasRecalled,
+  markRecalled,
+} from '../store'
 import PoliticianCard from '../components/PoliticianCard.vue'
 import LanguageNote from '../components/LanguageNote.vue'
 import PoolPicker from '../components/PoolPicker.vue'
+import RecallStep from '../components/RecallStep.vue'
 import HumanityCheckModal from '../components/HumanityCheckModal.vue'
 
 const route = useRoute()
@@ -16,8 +25,14 @@ const loading = ref(true)
 const busy = ref(false) // a vote is in flight
 const toast = ref('')
 
+// The belonging recall step (docs/11 §2): shown once per pool scope, before the
+// matchup, to learn who the visitor associates with this pool.
+const showRecall = ref(false)
+const poolLabelText = computed(() => poolLabel())
+
 const showHuman = ref(false)
 const pendingVote = ref(null) // { winnerId, loserId } awaiting humanity check
+const pendingProposal = ref(null) // { subjectId } awaiting humanity check
 
 const lockedHint = computed(() => route.query.locked === '1')
 
@@ -26,6 +41,11 @@ function flash(msg, seconds = 3) {
   toast.value = msg
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => (toast.value = ''), seconds * 1000)
+}
+
+// Show the recall step whenever we enter a pool scope the visitor hasn't answered.
+function syncRecall() {
+  showRecall.value = !hasRecalled(poolKeyOf())
 }
 
 async function load() {
@@ -40,6 +60,39 @@ async function load() {
     loading.value = false
   }
 }
+
+// The pool changed: re-ask recall for the new scope (if unanswered) and reload.
+function onPoolChange() {
+  syncRecall()
+  load()
+}
+
+// --- belonging recall --------------------------------------------------------
+
+async function doPropose(subjectId) {
+  try {
+    await api.propose(subjectId, poolQuery())
+    markRecalled(poolKeyOf())
+    showRecall.value = false
+    flash('Thanks — noted who comes to mind here.')
+  } catch (e) {
+    if (e.code === 'human_check_required') {
+      pendingProposal.value = { subjectId }
+      showHuman.value = true
+    } else if (e.code === 'rate_limited') {
+      flash('Whoa — slow down a moment.', Number(e.retryAfter) || 3)
+    } else {
+      flash(e.message || 'Could not record that.')
+    }
+  }
+}
+
+function onSkip() {
+  markRecalled(poolKeyOf()) // "I don't know anyone here" still answers the prompt
+  showRecall.value = false
+}
+
+// --- voting ------------------------------------------------------------------
 
 function prefer(winnerId) {
   if (busy.value || !matchup.value) return
@@ -74,24 +127,29 @@ async function castVote(winnerId, loserId) {
 
 function onVerified() {
   showHuman.value = false
+  const pp = pendingProposal.value
+  pendingProposal.value = null
   const pv = pendingVote.value
   pendingVote.value = null
-  if (pv) castVote(pv.winnerId, pv.loserId)
+  if (pp) doPropose(pp.subjectId)
+  else if (pv) castVote(pv.winnerId, pv.loserId)
 }
 
 function onHumanClosed() {
   showHuman.value = false
   pendingVote.value = null
+  pendingProposal.value = null
 }
 
 function onKey(e) {
-  if (showHuman.value || busy.value || !matchup.value) return
+  if (showHuman.value || showRecall.value || busy.value || !matchup.value) return
   if (e.key === 'ArrowLeft') prefer(matchup.value.a.id)
   else if (e.key === 'ArrowRight') prefer(matchup.value.b.id)
   else if (e.key === 's' || e.key === 'S') load()
 }
 
 onMounted(() => {
+  syncRecall()
   load()
   window.addEventListener('keydown', onKey)
 })
@@ -105,10 +163,14 @@ onUnmounted(() => {
   <section class="matchup">
     <p v-if="lockedHint" class="locked-hint">🔓 Vote once to unlock the rankings for 24 hours.</p>
 
-    <h1 class="prompt">Who would you rather have as a <em>leader?</em></h1>
-    <p class="subprompt">Two figures enter the agora. Pick the one you'd rather see in charge.</p>
+    <template v-if="!showRecall">
+      <h1 class="prompt">Who would you rather have as a <em>leader?</em></h1>
+      <p class="subprompt">Two figures enter the agora. Pick the one you'd rather see in charge.</p>
+    </template>
 
     <p v-if="loading" class="muted">Summoning two challengers…</p>
+
+    <RecallStep v-else-if="showRecall" :label="poolLabelText" @propose="doPropose" @skip="onSkip" />
 
     <div v-else-if="matchup" class="cards" :class="{ busy }">
       <PoliticianCard :key="matchup.a.id" :subject="matchup.a" side="a" @prefer="prefer" />
@@ -121,17 +183,17 @@ onUnmounted(() => {
       <span v-if="error" class="detail">({{ error }})</span>
     </p>
 
-    <p v-if="matchup" class="privacy-note">
+    <p v-if="matchup && !showRecall" class="privacy-note">
       🔒 <strong>Your vote is anonymous.</strong> We record only your choice — never your identity.
       No account, no email, no IP tracking, nothing that can be traced back to you.
     </p>
 
-    <LanguageNote v-if="matchup && matchup.fallbackApplied" :lang="matchup.displayLang" />
+    <LanguageNote v-if="matchup && !showRecall && matchup.fallbackApplied" :lang="matchup.displayLang" />
 
-    <button class="ghost" :disabled="busy" @click="load">↻ Skip — show me another pair</button>
-    <p class="kbd muted">Tip: <kbd>←</kbd> / <kbd>→</kbd> to choose, <kbd>S</kbd> to skip.</p>
+    <button v-if="!showRecall" class="ghost" :disabled="busy" @click="load">↻ Skip — show me another pair</button>
+    <p v-if="!showRecall" class="kbd muted">Tip: <kbd>←</kbd> / <kbd>→</kbd> to choose, <kbd>S</kbd> to skip.</p>
 
-    <PoolPicker :disabled="busy" @change="load" />
+    <PoolPicker :disabled="busy" @change="onPoolChange" />
     <p class="pool-hint muted">Pick a region or “famous only” to compare people you’re more likely to know.</p>
 
     <transition name="fade">
