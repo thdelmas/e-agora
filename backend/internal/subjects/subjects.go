@@ -36,6 +36,7 @@ type Store interface {
 	AddTokenUsed(ctx context.Context, jti string) (bool, error)
 	SubjectIDByQID(ctx context.Context, qid string) (int64, bool, error)
 	InsertUserSubject(ctx context.Context, ns store.NewSubject, jti string, tokenExp time.Time) (int64, error)
+	InsertRecalledSubject(ctx context.Context, ns store.NewSubject) (int64, error)
 }
 
 // Service orchestrates adds.
@@ -137,6 +138,79 @@ func (s *Service) Add(ctx context.Context, in AddInput, jti string, tokenExp tim
 		Extract: enExtract, ImageURL: enImage, WikipediaURL: enURL,
 		Deceased: facts.DiedAt != "",
 	}, nil
+}
+
+// EnsureFromURL resolves a Wikipedia URL to a subject id for the belonging recall
+// step (docs/11 §3): if the figure is already in the pool it returns their id;
+// otherwise it validates (a human with an English Wikipedia page) and ingests
+// them *ungated by the add-token* — recall precedes voting, so the rate limit and
+// belonging demotion are the controls, not the one-per-token allowance. Returns
+// the sentinel errors above. created reports whether a new subject was inserted.
+func (s *Service) EnsureFromURL(ctx context.Context, url string) (id int64, created bool, err error) {
+	if strings.TrimSpace(url) == "" {
+		return 0, false, ErrBadInput
+	}
+	qid, err := s.fetch.ResolveWikipediaURL(ctx, url)
+	switch {
+	case errors.Is(err, ingest.ErrBadInput):
+		return 0, false, ErrBadInput
+	case errors.Is(err, ingest.ErrNotFound):
+		return 0, false, ErrNoPage
+	case err != nil:
+		return 0, false, err
+	}
+	if !looksLikeQID(qid) {
+		return 0, false, ErrBadInput
+	}
+	if existing, ok, err := s.store.SubjectIDByQID(ctx, qid); err != nil {
+		return 0, false, err
+	} else if ok {
+		return existing, false, nil // already in the pool — just propose them
+	}
+
+	facts, err := s.fetch.Entity(ctx, qid)
+	if errors.Is(err, ingest.ErrNotFound) {
+		return 0, false, ErrNoPage
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	if !facts.IsHuman {
+		return 0, false, ErrNotPerson
+	}
+	if facts.EnwikiTitle == "" {
+		return 0, false, ErrNoPage
+	}
+
+	name := firstNonEmpty(facts.LabelEn, facts.EnwikiTitle)
+	langs := facts.Langs
+	if len(langs) == 0 {
+		langs = []string{"en"}
+	}
+	enName, enDesc, enExtract, enImage := name, "", "", ""
+	enURL := "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(facts.EnwikiTitle, " ", "_")
+	if sum, err := s.fetch.Summary(ctx, "en", facts.EnwikiTitle); err == nil {
+		enName = firstNonEmpty(sum.Name, name)
+		enDesc, enExtract, enImage = sum.Description, sum.Extract, sum.ImageURL
+		if sum.WikipediaURL != "" {
+			enURL = sum.WikipediaURL
+		}
+	}
+
+	id, err = s.store.InsertRecalledSubject(ctx, store.NewSubject{
+		QID: qid, Name: name, Langs: langs, DiedAt: facts.DiedAt,
+		EnName: enName, EnDesc: enDesc, EnExtract: enExtract, EnImage: enImage, EnURL: enURL,
+	})
+	if errors.Is(err, store.ErrAlreadyExists) {
+		// Raced with a concurrent add — the figure now exists; propose them.
+		if existing, ok, e := s.store.SubjectIDByQID(ctx, qid); e == nil && ok {
+			return existing, false, nil
+		}
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return id, true, nil
 }
 
 func looksLikeQID(s string) bool {

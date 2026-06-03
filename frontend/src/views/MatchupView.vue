@@ -32,7 +32,7 @@ const poolLabelText = computed(() => poolLabel())
 
 const showHuman = ref(false)
 const pendingVote = ref(null) // { winnerId, loserId } awaiting humanity check
-const pendingProposal = ref(null) // { subjectId } awaiting humanity check
+const proposing = ref(false) // a recall proposal is in flight (may ingest a new figure)
 
 const lockedHint = computed(() => route.query.locked === '1')
 
@@ -69,21 +69,24 @@ function onPoolChange() {
 
 // --- belonging recall --------------------------------------------------------
 
-async function doPropose(subjectId) {
+// payload is { subjectId } for an existing figure or { url } for a Wikipedia page
+// not yet in the pool (ingested on first recall). The latter does network work, so
+// guard against a double-submit while it's in flight.
+async function doPropose(payload) {
+  if (proposing.value) return
+  proposing.value = true
   try {
-    await api.propose(subjectId, poolQuery())
+    await api.propose(payload, poolQuery())
     markRecalled(poolKeyOf())
     showRecall.value = false
     flash('Thanks — noted who comes to mind here.')
   } catch (e) {
-    if (e.code === 'human_check_required') {
-      pendingProposal.value = { subjectId }
-      showHuman.value = true
-    } else if (e.code === 'rate_limited') {
-      flash('Whoa — slow down a moment.', Number(e.retryAfter) || 3)
-    } else {
-      flash(e.message || 'Could not record that.')
-    }
+    if (e.code === 'not_a_person') flash('e-agora is for people — that page isn’t a person.')
+    else if (e.code === 'not_a_wikipedia_page') flash('Couldn’t find a Wikipedia page for that.')
+    else if (e.code === 'rate_limited') flash('Whoa — slow down a moment.', Number(e.retryAfter) || 3)
+    else flash(e.message || 'Could not record that.')
+  } finally {
+    proposing.value = false
   }
 }
 
@@ -127,18 +130,14 @@ async function castVote(winnerId, loserId) {
 
 function onVerified() {
   showHuman.value = false
-  const pp = pendingProposal.value
-  pendingProposal.value = null
   const pv = pendingVote.value
   pendingVote.value = null
-  if (pp) doPropose(pp.subjectId)
-  else if (pv) castVote(pv.winnerId, pv.loserId)
+  if (pv) castVote(pv.winnerId, pv.loserId)
 }
 
 function onHumanClosed() {
   showHuman.value = false
   pendingVote.value = null
-  pendingProposal.value = null
 }
 
 function onKey(e) {
@@ -170,7 +169,7 @@ onUnmounted(() => {
 
     <p v-if="loading" class="muted">Summoning two challengers…</p>
 
-    <RecallStep v-else-if="showRecall" :label="poolLabelText" @propose="doPropose" @skip="onSkip" />
+    <RecallStep v-else-if="showRecall" :label="poolLabelText" :busy="proposing" @propose="doPropose" @skip="onSkip" />
 
     <div v-else-if="matchup" class="cards" :class="{ busy }">
       <PoliticianCard :key="matchup.a.id" :subject="matchup.a" side="a" @prefer="prefer" />

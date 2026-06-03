@@ -55,6 +55,43 @@ func (s *Store) AddTokenUsed(ctx context.Context, jti string) (bool, error) {
 // claims the token's single add allowance — all atomically (R8.1). The jti claim
 // is the LAST gate, so a duplicate-QID (ErrAlreadyExists) or a spent token
 // (ErrAddLimit) rolls back without consuming the allowance.
+// InsertRecalledSubject inserts a subject named in the belonging recall step
+// (docs/11 §3) — like InsertUserSubject but *without* the one-per-token add-log
+// claim, because recall precedes any vote so there is no access token to gate on.
+// The per-session rate limit, the is-human/page checks upstream, and belonging
+// demotion are the controls instead. Returns ErrAlreadyExists if the QID raced in.
+func (s *Store) InsertRecalledSubject(ctx context.Context, ns NewSubject) (int64, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	var id int64
+	err = tx.QueryRow(ctx, `
+		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs, died_at)
+		VALUES ($1, $2, 'user', $3, NULLIF($4, '')::date) RETURNING id`,
+		ns.QID, ns.Name, ns.Langs, ns.DiedAt).Scan(&id)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return 0, ErrAlreadyExists
+		}
+		return 0, fmt.Errorf("insert recalled subject: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO subject_translations (subject_id, lang, name, description, extract, image_url, wikipedia_url)
+		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6)`,
+		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage, ns.EnURL); err != nil {
+		return 0, fmt.Errorf("insert translation: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string, tokenExp time.Time) (int64, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

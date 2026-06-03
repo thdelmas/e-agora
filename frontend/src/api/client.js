@@ -44,9 +44,11 @@ export const api = {
   countries: () => request('/countries'),
   // Recall type-ahead over existing subjects, for the belonging step (docs/11 §2).
   recall: (q) => request(`/subjects/recall?q=${encodeURIComponent(q)}`),
-  // Record one recall of a subject for the active pool — the belonging signal.
-  propose: (subjectId, opts = {}) => {
+  // Record one recall for the active pool — the belonging signal. body is
+  // { subjectId } for an existing figure or { url } for a Wikipedia page not yet
+  // in the pool (ingested on first recall, docs/11 §3).
+  propose: (body, opts = {}) => {
     const p = new URLSearchParams(opts).toString()
-    return request(`/proposals${p ? `?${p}` : ''}`, { method: 'POST', body: { subjectId } })
+    return request(`/proposals${p ? `?${p}` : ''}`, { method: 'POST', body })
   },
 }
