@@ -11,6 +11,8 @@ func TestPoolKey(t *testing.T) {
 	}{
 		{"empty is world", Pool{}, "world"},
 		{"continent", Pool{Continent: "Europe"}, "continent:Europe"},
+		{"country", Pool{Country: "France"}, "country:France"},
+		{"country is the finer scope, wins over continent", Pool{Country: "France", Continent: "Europe"}, "country:France"},
 		{"fame/status don't change the key", Pool{Continent: "Africa", FameTop: true, IncludeDeceased: true}, "continent:Africa"},
 		{"world ignores view filters", Pool{FameTop: true, IncludeDeceased: true}, "world"},
 	}
