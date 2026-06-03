@@ -59,6 +59,7 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 			r.Get("/human/challenge", h.humanChallenge)
 			r.Post("/human/verify", h.humanVerify)
 			r.Post("/votes", h.vote)
+			r.Post("/proposals", h.proposal)
 			r.Get("/me", h.me)
 			r.Get("/leaderboard", h.leaderboard)
 			r.Post("/subjects", h.addSubject)
