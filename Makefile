@@ -1,6 +1,6 @@
 # e-agora developer tasks. Run `make help` for the list.
 .DEFAULT_GOAL := help
-.PHONY: help dev up down logs ps test fmt build prod-build clean
+.PHONY: help dev up down logs ps test fmt check-size build prod-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -26,6 +26,9 @@ test: ## Run backend tests
 
 fmt: ## Format the backend (gofmt)
 	cd backend && gofmt -w .
+
+check-size: ## Enforce file size limits (<=500 lines, <=80 cols; warn >250 lines)
+	./scripts/check-file-size.sh
 
 build: ## Build backend binary + frontend bundle (no Docker)
 	cd backend && go build ./...

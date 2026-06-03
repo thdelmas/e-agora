@@ -14,6 +14,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  size:
+    name: File size limits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails on files >500 lines or any line >80 cols; warns above 250 lines.
+      - name: Check file dimensions
+        run: ./scripts/check-file-size.sh
+
   backend:
     name: Backend (Go)
     runs-on: ubuntu-latest
