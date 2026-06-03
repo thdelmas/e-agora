@@ -147,10 +147,16 @@ per-pool leaderboard read the score as a weight/filter.
 Unchanged stance ([05](05-ranking.md), [09](09-identity-and-voting.md),
 [10 §6](10-recognition-and-pools.md)). A proposal is a fact aggregated per *pool*,
 never a per-visitor profile; the figure named is public; no IP, no profiling.
-Proposals are vote-shaped, so they inherit the same defenses — the humanity check
-(R12) and per-session rate limit (R11) — and the belonging **threshold** stops a
-lone actor injecting a figure into a pool they don't belong to. Unregistered-recall
-adds keep the human + Wikipedia-page + dedupe checks of the existing add path.
+A proposal is **rate-limited (R11) but, unlike a vote, not humanity-gated (R12)** —
+recall is the visitor's first interaction (pool entry, before any vote), so a
+humanity wall there would lose the casual visitor this whole redesign exists to
+serve. The abuse surface is low: the smoothed score moves `n` and `N` together, so
+a single session is near-neutral and shifting belonging needs *many distinct
+sessions* — which the humanity check on **votes** still discourages — while the
+belonging **threshold** stops a lone actor injecting a figure into a pool. (The
+*authoritative* signal, the rating, stays gated; the *soft* signal, belonging, goes
+frictionless.) Unregistered-recall adds keep the human + Wikipedia-page + dedupe
+checks of the existing add path.
 
 ## 9. Roadmap
 

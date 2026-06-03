@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/thdelmas/e-agora/backend/internal/store"
 )
@@ -38,10 +37,13 @@ type proposalResponse struct {
 }
 
 // proposal records one recall of a subject for the active pool (docs/11 §2) — the
-// belonging signal. Gated like a vote (R11 rate limit + R12 humanity check): it's
-// a write that shapes pool membership, so it inherits the same anti-abuse. The
-// pool scope comes from the same query params as the matchup/leaderboard
-// (poolFrom → PoolKey); the recalled subject is in the body.
+// belonging signal. Rate-limited but, unlike a vote, *not* humanity-gated: recall
+// is the visitor's first interaction (pool entry, before any vote), so gating it
+// would wall off the casual visitor the recognition redesign exists to serve. The
+// abuse surface is low — the smoothed score moves n and N together, so one session
+// is near-neutral and shifting belonging needs many distinct sessions (which the
+// humanity check on *votes* still discourages). The pool scope comes from the same
+// query params as the matchup/leaderboard (poolFrom → PoolKey); subject in the body.
 func (h *handlers) proposal(w http.ResponseWriter, r *http.Request) {
 	sess := sessionFrom(r.Context())
 
@@ -51,10 +53,6 @@ func (h *handlers) proposal(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusTooManyRequests, "rate_limited", "Whoa — slow down a moment.")
 			return
 		}
-	}
-	if sess.HumanVerifiedUntil == nil || !sess.HumanVerifiedUntil.After(time.Now()) {
-		writeError(w, http.StatusForbidden, "human_check_required", "Prove you're human first.")
-		return
 	}
 
 	var req proposalRequest
