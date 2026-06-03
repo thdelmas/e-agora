@@ -86,33 +86,50 @@ type Pool struct {
 // zero (ln(0) errors); greatest(w, 1e-9) guards a zero weight. The final ORDER BY
 // random() shuffles which side the anchor lands on.
 //
+// Belonging (docs/11) reweights *within* a pool: each subject's recognition weight
+// is multiplied by a per-(pool,subject) recall factor (n+a)/(π₀·N+a) — 1 when no one
+// has proposed yet (the draw is unchanged until data exists), >1 for the
+// crowd-recalled, <1 for a geographic member the crowd pointedly doesn't recall
+// here (the Türkiye-in-Europe demotion). The discovery slot stays belonging-blind,
+// so a demoted member is rare, not deleted, and the comparison graph stays connected.
+//
 // The pool scopes who is eligible (docs/10 §4): the deceased are excluded unless
 // pool.IncludeDeceased, and Continent / Country / FameTop narrow both the anchor
 // and the challenger (strict — an explicit selection never leaks an out-of-pool
 // figure). Translations are fetched separately per the resolved display language.
 func (s *Store) RandomPair(ctx context.Context, viewerLang, homeRegion, homeCountry string, p RecoParams, pool Pool) ([]model.Subject, error) {
 	discovery := rand.Float64() < p.DiscoveryRate
+	// Belonging reweights the draw within this pool (docs/11): a per-(pool,subject)
+	// recall factor multiplies the recognition weight, keyed by the pool's scope.
+	poolKey := PoolKey(pool)
 	rows, err := s.pool.Query(ctx, `
 		WITH cutoff AS (
 			SELECT CASE WHEN $9 THEN
 			            coalesce(percentile_cont($10) WITHIN GROUP (ORDER BY global_views), 0)
 			       ELSE 0 END AS fame_min
 			FROM subjects WHERE active AND ($1 OR died_at IS NULL)
+		), belong AS (
+			-- N: total proposals into this pool (docs/11); 0 => factor 1 (no data, no effect).
+			SELECT coalesce((SELECT proposals FROM pool_stats WHERE pool_key = $16), 0) AS pool_total
 		), scored AS (
 			SELECT s.id, s.wikidata_id, s.canonical_name, s.available_langs, s.died_at, s.comparisons,
 			       greatest(
-			           $4 * ln(1 + greatest(cardinality(s.available_langs), 1))
-			         + $5 * ln(1 + coalesce(pv.views, 0))
-			         + $6 * ln(1 + s.global_views)
-			         + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0))
-			         + CASE WHEN $11 <> '' AND s.continent @> ARRAY[$11] THEN $12::float8 ELSE 0 END
-			         + CASE WHEN $14 <> '' AND s.country = $14 THEN $15::float8 ELSE 0 END,
+			           (  $4 * ln(1 + greatest(cardinality(s.available_langs), 1))
+			            + $5 * ln(1 + coalesce(pv.views, 0))
+			            + $6 * ln(1 + s.global_views)
+			            + $7 * (coalesce(pv.views, 0)::float8 / greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0))
+			            + CASE WHEN $11 <> '' AND s.continent @> ARRAY[$11] THEN $12::float8 ELSE 0 END
+			            + CASE WHEN $14 <> '' AND s.country = $14 THEN $15::float8 ELSE 0 END )
+			         -- belonging factor (docs/11): crowd recall reweights within the pool.
+			         -- (n+a)/(pi0*N+a): 1 when no data, >1 recalled, <1 evidence-of-absence.
+			         * ((coalesce(pb.proposals, 0) + $17) / ($18 * (SELECT pool_total FROM belong) + $17)),
 			           1e-9) AS w,
 			       (($8 = '' OR s.continent @> ARRAY[$8])
 			         AND ($13 = '' OR s.country = $13)
 			         AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
 			FROM subjects s
 			LEFT JOIN subject_pageviews pv ON pv.subject_id = s.id AND pv.lang = $3
+			LEFT JOIN pool_belonging pb ON pb.pool_key = $16 AND pb.subject_id = s.id
 			WHERE s.active AND ($1 OR s.died_at IS NULL)
 		), anchor AS (
 			SELECT id, wikidata_id, canonical_name, available_langs, died_at
@@ -136,7 +153,8 @@ func (s *Store) RandomPair(ctx context.Context, viewerLang, homeRegion, homeCoun
 		ORDER BY random()`,
 		pool.IncludeDeceased, discovery, viewerLang, p.Base, p.Alpha, p.Beta, p.Gamma,
 		pool.Continent, pool.FameTop, pool.FamePct, homeRegion, p.Region,
-		pool.Country, homeCountry, p.Country)
+		pool.Country, homeCountry, p.Country,
+		poolKey, belongPriorStrength, belongPriorShare)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}
