@@ -1,0 +1,60 @@
+package http
+
+import (
+	"encoding/json"
+	"errors"
+	"math"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/thdelmas/e-agora/backend/internal/store"
+)
+
+type proposalRequest struct {
+	SubjectID int64 `json:"subjectId"`
+}
+
+type proposalResponse struct {
+	PoolKey string `json:"poolKey"`
+}
+
+// proposal records one recall of a subject for the active pool (docs/11 §2) — the
+// belonging signal. Gated like a vote (R11 rate limit + R12 humanity check): it's
+// a write that shapes pool membership, so it inherits the same anti-abuse. The
+// pool scope comes from the same query params as the matchup/leaderboard
+// (poolFrom → PoolKey); the recalled subject is in the body.
+func (h *handlers) proposal(w http.ResponseWriter, r *http.Request) {
+	sess := sessionFrom(r.Context())
+
+	if h.cfg.RateLimitOn {
+		if ok, retry := h.limiter.Allow(sess.ID); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "Whoa — slow down a moment.")
+			return
+		}
+	}
+	if sess.HumanVerifiedUntil == nil || !sess.HumanVerifiedUntil.After(time.Now()) {
+		writeError(w, http.StatusForbidden, "human_check_required", "Prove you're human first.")
+		return
+	}
+
+	var req proposalRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.SubjectID == 0 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Provide a subjectId to propose.")
+		return
+	}
+
+	poolKey := store.PoolKey(h.poolFrom(r))
+	err := h.store.RecordProposal(r.Context(), sess.ID, poolKey, req.SubjectID)
+	if errors.Is(err, store.ErrInvalidProposal) {
+		writeError(w, http.StatusBadRequest, "invalid_proposal", "That isn't an active subject.")
+		return
+	}
+	if err != nil {
+		h.logger.Error("proposal: record", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal", "Could not record your proposal.")
+		return
+	}
+	writeJSON(w, http.StatusOK, proposalResponse{PoolKey: poolKey})
+}
