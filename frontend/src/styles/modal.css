@@ -1,0 +1,221 @@
+/* -------------------------------------------------------------------- Modal */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(20, 26, 38, 0.55); backdrop-filter: blur(4px);
+  /* A single flex child centred with margin:auto stays fully scrollable when it
+     outgrows the viewport (a short phone, or the on-screen keyboard open) —
+     unlike align-items:center, which makes the overflowing top unreachable. */
+  display: flex; padding: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  animation: fade-in 0.2s ease both;
+}
+.modal {
+  /* centres when it fits; pins to top and scrolls when it doesn't */
+  margin: auto;
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+  padding: 1.6rem; border-radius: var(--radius); max-width: 440px; width: 100%;
+  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  animation: pop-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  position: relative;
+  overflow: hidden;
+}
+.modal::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 5px;
+  background: linear-gradient(90deg, var(--teal), var(--laurel) 50%,
+    var(--gold));
+}
+.modal h2 { margin-top: 0.3rem; font-size: 1.5rem; font-weight: 900; }
+
+/* Welcome + privacy step (post humanity-check onboarding). */
+.modal.welcome .privacy-note {
+  margin: 1.2rem 0 0;
+  max-width: none;
+  text-align: left;
+}
+.enter-btn {
+  display: block; width: 100%; margin-top: 1.3rem;
+  color: #fff; border: none; font-weight: 700; font-size: 1rem;
+  padding: 0.75rem 1rem; border-radius: 12px;
+  background: linear-gradient(135deg, var(--laurel), var(--laurel-deep));
+  box-shadow: 0 8px 20px rgba(31, 110, 76, 0.28);
+  transition: transform 0.14s ease, box-shadow 0.2s ease;
+}
+.enter-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(31, 110, 76, 0.36);
+}
+.enter-btn:active { transform: translateY(0); }
+
+.add-input {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  margin: 0.65rem 0;
+  background: #fff;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.add-input:focus {
+  outline: none;
+  border-color: var(--laurel);
+  box-shadow: 0 0 0 3px rgba(31, 110, 76, 0.15);
+}
+
+/* Cap to whichever is smaller so the input + Cancel stay visible on short
+   phones (where 300px would push them off-screen) while desktops keep the
+   room. */
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0;
+  max-height: min(300px, 42vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.search-results .result {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: transparent;
+  transition: background 0.14s;
+}
+.search-results .result:hover:not(:disabled) {
+  background: rgba(31, 110, 76, 0.08);
+}
+.result-thumb {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 8px;
+  flex: none;
+  background: #efe7d6;
+}
+.result-thumb.placeholder {
+  background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 8px,
+    #e9dfc9 8px, #e9dfc9 16px);
+}
+.result-text { display: flex; flex-direction: column; min-width: 0; }
+.result-text strong { font-weight: 700; }
+.result-text .detail {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+/* Add-confirmation card: shown after a successful add so the visitor sees
+   exactly who joined the pool (identity + photo), not just a text nudge. */
+.added-card {
+  display: flex; gap: 0.8rem; align-items: center; text-align: left;
+  background: rgba(31, 110, 76, 0.07); border: 1px solid var(--border);
+  border-radius: 12px; padding: 0.7rem; margin: 0.55rem 0 0.85rem;
+}
+.added-portrait {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 10px;
+  flex: none;
+  background: #efe7d6;
+}
+.added-portrait.placeholder {
+  background: repeating-linear-gradient(45deg, #efe7d6, #efe7d6 8px,
+    #e9dfc9 8px, #e9dfc9 16px);
+}
+.added-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.added-name { font-weight: 800; font-size: 1.05rem; }
+.added-text .detail { color: var(--muted); }
+.hint { font-size: 0.85rem; margin: 0.1rem 0 0.3rem; }
+
+/* Clean pill button for the "Read on Wikipedia" link in the add-confirmation
+   card — a clear, tappable secondary action (the primary is "Done"). */
+.wiki-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  margin-top: 0.4rem; padding: 0.4rem 0.8rem; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff; color: var(--teal-deep);
+  font-size: 0.82rem; font-weight: 700; text-decoration: none;
+  transition: border-color 0.16s, background 0.16s, transform 0.12s,
+    box-shadow 0.16s;
+}
+.wiki-btn:hover {
+  border-color: var(--teal); background: rgba(15, 157, 142, 0.08);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 157, 142, 0.18);
+}
+
+/* Humanity check */
+.oath {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-style: italic;
+  line-height: 1.45;
+  border-left: 4px solid var(--gold);
+  margin: 1.1rem 0;
+  padding: 0.6rem 0 0.6rem 1.1rem;
+  text-align: left; color: var(--ink);
+  background: linear-gradient(90deg, rgba(216, 162, 58, 0.1), transparent);
+  border-radius: 0 8px 8px 0;
+}
+.human-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.85rem 0;
+}
+.opt {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 0.8rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 10px;
+  text-align: left;
+  transition: border-color 0.16s, background 0.16s, transform 0.12s;
+}
+.opt:hover:not(:disabled) {
+  border-color: var(--laurel);
+  background: rgba(31, 110, 76, 0.06);
+  transform: translateX(2px);
+}
+.nudge { font-size: 0.92rem; color: #b03a2e; font-weight: 500; }
+.nudge.success, .access-banner.active { color: var(--laurel-deep); }
+.nudge.error { color: #b03a2e; }
+
+/* ------------------------------------------------------- Banners & notices */
+.access-banner, .language-note { text-align: center; font-size: 0.9rem; }
+.access-banner {
+  font-weight: 600; color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 1rem; display: inline-block; box-shadow: var(--shadow-sm);
+}
+.access-banner.active {
+  background: rgba(31, 110, 76, 0.1);
+  border-color: rgba(31, 110, 76, 0.25);
+}
+.language-note { margin-top: 0.9rem; }
+
+.site-footer {
+  text-align: center; color: var(--muted); font-size: 0.8rem;
+  padding: 1.75rem 1.5rem; border-top: 1px solid var(--line); margin-top: 1rem;
+  max-width: var(--maxw); margin-left: auto; margin-right: auto; width: 100%;
+}
+

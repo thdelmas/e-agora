@@ -28,5 +28,7 @@ const label = computed(() => {
 </script>
 
 <template>
-  <div class="access-banner" :class="{ active }" aria-live="polite">{{ label }}</div>
+  <div class="access-banner" :class="{ active }" aria-live="polite">
+    {{ label }}
+  </div>
 </template>

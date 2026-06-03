@@ -1,0 +1,92 @@
+/* ============================================================================
+   e-agora — "civic arena" theme
+   A sunlit Mediterranean agora where public figures clash head-to-head.
+   Teal (side A) vs amber (side B), laurel-green chrome, gold accents,
+   bold Fraunces display type, lively (motion-safe) interactions.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg-1: #fbf6ec;          /* warm parchment, top */
+  --bg-2: #f4ead8;          /* deeper parchment, bottom */
+  --card: #fffdf8;
+  --card-2: #fffaf0;
+  --ink: #1c2433;
+  --ink-soft: #424c5e;
+  --muted: #837a6b;
+  --border: #e9dfc9;
+  --line: rgba(28, 36, 51, 0.08);
+
+  /* Brand / chrome */
+  --laurel: #1f6e4c;
+  --laurel-deep: #134e36;
+  --gold: #d8a23a;
+  --gold-deep: #b07c16;
+
+  /* Vote sides */
+  --teal: #0f9d8e;          /* side A */
+  --teal-deep: #0a6f66;
+  --amber: #ef7a45;         /* side B */
+  --amber-deep: #cf5527;
+
+  --accent: var(--laurel);  /* legacy alias used in a few spots */
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --maxw: 980px;
+
+  --shadow-sm: 0 1px 2px rgba(28, 36, 51, 0.06),
+    0 2px 8px rgba(28, 36, 51, 0.05);
+  --shadow-md: 0 6px 18px rgba(28, 36, 51, 0.10),
+    0 1px 3px rgba(28, 36, 51, 0.06);
+  --shadow-lg: 0 18px 48px rgba(28, 36, 51, 0.16);
+
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* Mobile-first typographic base: the smallest viewport sets the floor, then the
+   root size scales up at wider breakpoints. Everything else uses rem, so the
+   whole type scale grows from this single anchor. 16px on mobile keeps body
+   text legible and avoids iOS focus-zoom on inputs. */
+html {
+  scroll-behavior: smooth;
+  font-size: 100%;             /* 16px — mobile base */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* 17px — tablet up */
+@media (min-width: 768px)  { html { font-size: 106.25%; } }
+/* 18px — large screens */
+@media (min-width: 1200px) { html { font-size: 112.5%; } }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  line-height: 1.55;
+  background:
+    radial-gradient(1100px 520px at 12% -8%,
+      rgba(15, 157, 142, 0.16), transparent 60%),
+    radial-gradient(1000px 540px at 92% 4%,
+      rgba(239, 122, 69, 0.16), transparent 58%),
+    radial-gradient(900px 700px at 50% 120%,
+      rgba(31, 110, 76, 0.14), transparent 60%),
+    linear-gradient(170deg, var(--bg-1), var(--bg-2));
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+.content {
+  flex: 1; width: 100%; max-width: var(--maxw);
+  margin: 0 auto; padding: 2rem 1.5rem 3rem;
+}
+
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
+a { color: var(--laurel); }
+

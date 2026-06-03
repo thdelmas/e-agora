@@ -5,7 +5,13 @@ import SiteFooter from './components/SiteFooter.vue'
 import AddSubjectModal from './components/AddSubjectModal.vue'
 import HumanityCheckModal from './components/HumanityCheckModal.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
-import { me, refreshMe, welcomeSeen, acknowledgeWelcome, homeRegionChosen } from './store'
+import {
+  me,
+  refreshMe,
+  welcomeSeen,
+  acknowledgeWelcome,
+  homeRegionChosen,
+} from './store'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,19 +28,24 @@ const isPublicPage = computed(() => route.name === 'stats')
 
 onMounted(refreshMe)
 
-// Onboarding gate sequence: land → humanity check → welcome + privacy → agora.
+// Onboarding gate sequence:
+// land → humanity check → welcome + privacy → agora.
 // We wait for `me` to load so nothing flashes before the visitor's status is
 // known.
 //
-// R12 — the humanity check gates entry to the agora itself, not just voting: an
-// unverified visitor meets it first and reaches nothing else until they pass.
+// R12 — the humanity check gates entry to the agora itself, not just voting:
+// an unverified visitor meets it first and reaches nothing else until they
+// pass.
 const needsHuman = computed(() => me.loaded && !me.humanVerified)
-// Then the one-time welcome + anonymity note + home-region question, before the
-// agora opens. Also shown to returning visitors who predate the region step (seen
-// the welcome, but never chose a home region) so the default pool gets accurate
-// for them too — once chosen, neither flag re-triggers it.
+// Then the one-time welcome + anonymity note + home-region question, before
+// the agora opens. Also shown to returning visitors who predate the region
+// step (seen the welcome, but never chose a home region) so the default pool
+// gets accurate for them too — once chosen, neither flag re-triggers it.
 const needsWelcome = computed(
-  () => me.loaded && !needsHuman.value && (!welcomeSeen.value || !homeRegionChosen.value),
+  () =>
+    me.loaded &&
+    !needsHuman.value &&
+    (!welcomeSeen.value || !homeRegionChosen.value),
 )
 
 function onHumanVerified() {
@@ -64,29 +75,66 @@ function openLeaderboard() {
       <span class="tagline">where the people decide, one vote at a time</span>
 
       <nav class="nav">
-        <!-- The vote arena is the one destination that's never gated — it's how
-             a visitor earns access — so Vote stays a plain link with no lock. -->
-        <RouterLink to="/" class="nav-vote" title="Back to the voting arena">Vote</RouterLink>
-        <RouterLink :to="me.hasAccess ? '/stats' : lockedTo" class="nav-stats" :class="{ locked: !me.hasAccess }" :title="me.hasAccess ? 'Public statistics — anonymous & open to all' : 'Vote once to unlock the stats'">
+        <!-- The vote arena is the one destination that's never gated — it's
+             how a visitor earns access — so Vote stays a plain link with no
+             lock. -->
+        <RouterLink
+          to="/"
+          class="nav-vote"
+          title="Back to the voting arena"
+        >Vote</RouterLink>
+        <RouterLink
+          :to="me.hasAccess ? '/stats' : lockedTo"
+          class="nav-stats"
+          :class="{ locked: !me.hasAccess }"
+          :title="me.hasAccess
+            ? 'Public statistics — anonymous & open to all'
+            : 'Vote once to unlock the stats'"
+        >
           {{ me.hasAccess ? 'Stats' : 'Stats 🔒' }}
         </RouterLink>
-        <button class="nav-add" :class="{ locked: !me.hasAccess }" :disabled="me.hasAccess && !me.canAdd" :title="addTitle" @click="onAdd">
+        <button
+          class="nav-add"
+          :class="{ locked: !me.hasAccess }"
+          :disabled="me.hasAccess && !me.canAdd"
+          :title="addTitle"
+          @click="onAdd"
+        >
           {{ me.hasAccess ? '+ Add someone' : '+ Add someone 🔒' }}
         </button>
-        <button class="nav-board" :class="{ locked: !me.hasAccess, active: me.hasAccess && route.name === 'leaderboard' }" :title="me.hasAccess ? 'World rankings' : 'Vote once to unlock the rankings'" @click="openLeaderboard">
+        <button
+          class="nav-board"
+          :class="{
+            locked: !me.hasAccess,
+            active: me.hasAccess && route.name === 'leaderboard',
+          }"
+          :title="me.hasAccess
+            ? 'World rankings'
+            : 'Vote once to unlock the rankings'"
+          @click="openLeaderboard"
+        >
           {{ me.hasAccess ? 'Rankings' : 'Rankings 🔒' }}
         </button>
       </nav>
     </header>
 
     <main class="content">
-      <RouterView v-if="isPublicPage || (me.loaded && !needsHuman && !needsWelcome)" />
+      <RouterView
+        v-if="isPublicPage || (me.loaded && !needsHuman && !needsWelcome)"
+      />
     </main>
 
     <SiteFooter />
 
     <AddSubjectModal v-if="showAdd" @close="showAdd = false" />
-    <HumanityCheckModal v-if="needsHuman && !isPublicPage" gate @verified="onHumanVerified" />
-    <WelcomeModal v-else-if="needsWelcome && !isPublicPage" @enter="acknowledgeWelcome" />
+    <HumanityCheckModal
+      v-if="needsHuman && !isPublicPage"
+      gate
+      @verified="onHumanVerified"
+    />
+    <WelcomeModal
+      v-else-if="needsWelcome && !isPublicPage"
+      @enter="acknowledgeWelcome"
+    />
   </div>
 </template>

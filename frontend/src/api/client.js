@@ -1,12 +1,14 @@
-// Thin fetch wrapper. `credentials: 'include'` ensures the anonymous session and
-// 24h access-token cookies flow on every request (docs/04-api.md §Conventions).
+// Thin fetch wrapper. `credentials: 'include'` ensures the anonymous session
+// and 24h access-token cookies flow on every request
+// (docs/04-api.md §Conventions).
 
 async function request(path, { method = 'GET', body } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
-    // The matchup, leaderboard and stats all change as votes come in, so never
-    // serve a stale heuristically-cached GET — always revalidate against the API.
+    // The matchup, leaderboard and stats all change as votes come in, so
+    // never serve a stale heuristically-cached GET — always revalidate
+    // against the API.
     cache: 'no-store',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -29,24 +31,35 @@ export const api = {
     const p = new URLSearchParams(opts).toString()
     return request(`/matchup${p ? `?${p}` : ''}`)
   },
-  vote: (winnerId, loserId) => request('/votes', { method: 'POST', body: { winnerId, loserId } }),
+  vote: (winnerId, loserId) =>
+    request('/votes', { method: 'POST', body: { winnerId, loserId } }),
   leaderboard: (opts = {}) => {
     const p = new URLSearchParams(opts).toString()
     return request(`/leaderboard${p ? `?${p}` : ''}`)
   },
   humanChallenge: () => request('/human/challenge'),
   humanVerify: (challengeId, answer, timing) =>
-    request('/human/verify', { method: 'POST', body: { challengeId, answer, timing } }),
-  searchSubjects: (q, lang) => request(`/subjects/search?q=${encodeURIComponent(q)}${lang ? `&lang=${lang}` : ''}`),
-  addSubject: (payload) => request('/subjects', { method: 'POST', body: payload }),
+    request('/human/verify', {
+      method: 'POST',
+      body: { challengeId, answer, timing },
+    }),
+  searchSubjects: (q, lang) =>
+    request(
+      `/subjects/search?q=${encodeURIComponent(q)}` +
+        `${lang ? `&lang=${lang}` : ''}`,
+    ),
+  addSubject: (payload) =>
+    request('/subjects', { method: 'POST', body: payload }),
   stats: (days) => request(`/stats${days ? `?days=${days}` : ''}`),
-  // Countries with enough subjects to scope a pool, for the picker (docs/10 §4).
+  // Countries with enough subjects to scope a pool, for the picker
+  // (docs/10 §4).
   countries: () => request('/countries'),
-  // Recall type-ahead over existing subjects, for the belonging step (docs/11 §2).
+  // Recall type-ahead over existing subjects, for the belonging step
+  // (docs/11 §2).
   recall: (q) => request(`/subjects/recall?q=${encodeURIComponent(q)}`),
   // Record one recall for the active pool — the belonging signal. body is
-  // { subjectId } for an existing figure or { url } for a Wikipedia page not yet
-  // in the pool (ingested on first recall, docs/11 §3).
+  // { subjectId } for an existing figure or { url } for a Wikipedia page not
+  // yet in the pool (ingested on first recall, docs/11 §3).
   propose: (body, opts = {}) => {
     const p = new URLSearchParams(opts).toString()
     return request(`/proposals${p ? `?${p}` : ''}`, { method: 'POST', body })

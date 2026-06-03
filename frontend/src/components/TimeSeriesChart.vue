@@ -7,7 +7,8 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps({
-  series: { type: Array, required: true }, // [{ date: 'YYYY-MM-DD', value: Number }]
+  // [{ date: 'YYYY-MM-DD', value: Number }]
+  series: { type: Array, required: true },
   mode: { type: String, default: 'area' }, // 'area' | 'bars'
   color: { type: String, default: '#0f9d8e' },
   label: { type: String, default: 'time series' },
@@ -15,9 +16,9 @@ const props = defineProps({
 })
 
 // The drawing's internal coordinate space. On narrow screens we switch to a
-// less-wide, taller viewBox: it lets each chart fill more of the phone and —
-// since SVG text scales by (display width / viewBox width) — keeps the axis
-// labels from shrinking into illegibility on a 1000-wide box.
+// less-wide, taller viewBox: it lets each chart fill more of the phone and
+// — since SVG text scales by (display width / viewBox width) — keeps the
+// axis labels from shrinking into illegibility on a 1000-wide box.
 const narrow = ref(false)
 let mq = null
 function syncNarrow() {
@@ -34,7 +35,11 @@ onUnmounted(() => {
 
 const W = computed(() => (narrow.value ? 560 : 1000))
 const H = computed(() => (narrow.value ? 360 : 320))
-const PAD = computed(() => (narrow.value ? { l: 54, r: 14, t: 16, b: 30 } : { l: 54, r: 16, t: 18, b: 30 }))
+const PAD = computed(() =>
+  narrow.value
+    ? { l: 54, r: 14, t: 16, b: 30 }
+    : { l: 54, r: 16, t: 18, b: 30 },
+)
 const x0 = computed(() => PAD.value.l)
 const x1 = computed(() => W.value - PAD.value.r)
 const yTop = computed(() => PAD.value.t)
@@ -70,7 +75,9 @@ function barX(i) {
 
 // Area fill + line stroke paths.
 const linePath = computed(() =>
-  points.value.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
+  points.value
+    .map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' '),
 )
 const areaPath = computed(() => {
   const pts = points.value
@@ -85,13 +92,18 @@ const areaPath = computed(() => {
 })
 
 // Dots only when the series is short enough to stay legible.
-const showDots = computed(() => props.mode === 'area' && n.value > 1 && n.value <= 45)
+const showDots = computed(
+  () => props.mode === 'area' && n.value > 1 && n.value <= 45,
+)
 
 // Sparse x-axis labels (first / middle / last) so they don't crowd.
 const xLabels = computed(() => {
   const pts = points.value
   if (!pts.length) return []
-  const idxs = pts.length <= 2 ? pts.map((_, i) => i) : [0, Math.floor((pts.length - 1) / 2), pts.length - 1]
+  const idxs =
+    pts.length <= 2
+      ? pts.map((_, i) => i)
+      : [0, Math.floor((pts.length - 1) / 2), pts.length - 1]
   return [...new Set(idxs)].map((i) => ({
     x: pts[i].x,
     label: pts[i].short,
@@ -101,7 +113,10 @@ const xLabels = computed(() => {
 
 const ariaLabel = computed(() => {
   const total = values.value.reduce((a, b) => a + b, 0)
-  return `${props.label}: ${total.toLocaleString()} ${props.unit} total over ${n.value} days; peak ${maxVal.value.toLocaleString()} in a day.`
+  return (
+    `${props.label}: ${total.toLocaleString()} ${props.unit} total over ` +
+    `${n.value} days; peak ${maxVal.value.toLocaleString()} in a day.`
+  )
 })
 
 // Unique gradient id per instance without relying on randomness.
@@ -112,7 +127,10 @@ function formatShort(d) {
   if (!d) return ''
   const [y, m, day] = d.split('-').map(Number)
   if (!y) return d
-  return new Date(y, m - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return new Date(y, m - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 function fmt(v) {
   return Number(v).toLocaleString()
@@ -129,7 +147,12 @@ function nextId() {
 
 <template>
   <figure class="chart" :class="`chart-${mode}`">
-    <svg :viewBox="`0 0 ${W} ${H}`" class="chart-svg" role="img" :aria-label="ariaLabel">
+    <svg
+      :viewBox="`0 0 ${W} ${H}`"
+      class="chart-svg"
+      role="img"
+      :aria-label="ariaLabel"
+    >
       <defs>
         <linearGradient :id="gradId" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" :stop-color="color" stop-opacity="0.34" />
@@ -140,8 +163,20 @@ function nextId() {
       <!-- gridlines + y-axis bounds -->
       <line :x1="x0" :y1="yTop" :x2="x1" :y2="yTop" class="grid grid-faint" />
       <line :x1="x0" :y1="yBase" :x2="x1" :y2="yBase" class="grid" />
-      <text :x="x0 - 10" :y="yTop" class="ylabel" text-anchor="end" dominant-baseline="middle">{{ fmt(maxVal) }}</text>
-      <text :x="x0 - 10" :y="yBase" class="ylabel" text-anchor="end" dominant-baseline="middle">0</text>
+      <text
+        :x="x0 - 10"
+        :y="yTop"
+        class="ylabel"
+        text-anchor="end"
+        dominant-baseline="middle"
+      >{{ fmt(maxVal) }}</text>
+      <text
+        :x="x0 - 10"
+        :y="yBase"
+        class="ylabel"
+        text-anchor="end"
+        dominant-baseline="middle"
+      >0</text>
 
       <!-- bars -->
       <template v-if="mode === 'bars'">
@@ -165,14 +200,29 @@ function nextId() {
         <path :d="areaPath" :fill="`url(#${gradId})`" class="area" />
         <path :d="linePath" fill="none" :stroke="color" class="line" />
         <template v-if="showDots">
-          <circle v-for="(p, i) in points" :key="i" :cx="p.x" :cy="p.y" r="3.5" class="dot" :style="{ fill: color }">
+          <circle
+            v-for="(p, i) in points"
+            :key="i"
+            :cx="p.x"
+            :cy="p.y"
+            r="3.5"
+            class="dot"
+            :style="{ fill: color }"
+          >
             <title>{{ p.short }}: {{ fmt(p.value) }} {{ unit }}</title>
           </circle>
         </template>
       </template>
 
       <!-- x-axis labels -->
-      <text v-for="(l, i) in xLabels" :key="'x' + i" :x="l.x" :y="H - 9" class="xlabel" :text-anchor="l.anchor">
+      <text
+        v-for="(l, i) in xLabels"
+        :key="'x' + i"
+        :x="l.x"
+        :y="H - 9"
+        class="xlabel"
+        :text-anchor="l.anchor"
+      >
         {{ l.label }}
       </text>
     </svg>

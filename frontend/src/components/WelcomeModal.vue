@@ -1,10 +1,11 @@
 <script setup>
-// Shown once, right after the humanity check passes and before the agora opens:
-// a short welcome, the anonymity promise, and the one-time home-region question
-// (docs/10 §4). The region is pre-highlighted from the browser's volunteered
-// language — never IP (docs/10 §6) — so most visitors just confirm. Both the
-// acknowledgement and the chosen region are stored locally, never sent to the
-// server beyond the per-request query flag, so a returning visitor isn't re-asked.
+// Shown once, right after the humanity check passes and before the agora
+// opens: a short welcome, the anonymity promise, and the one-time home-region
+// question (docs/10 §4). The region is pre-highlighted from the browser's
+// volunteered language — never IP (docs/10 §6) — so most visitors just
+// confirm. Both the acknowledgement and the chosen region are stored locally,
+// never sent to the server beyond the per-request query flag, so a returning
+// visitor isn't re-asked.
 import { ref } from 'vue'
 import { REGIONS, suggestRegion, setHomeRegion } from '../store'
 
@@ -21,24 +22,34 @@ function enter() {
 
 <template>
   <div class="modal-backdrop">
-    <div class="modal welcome" role="dialog" aria-modal="true" aria-label="Welcome to e-agora">
+    <div
+      class="modal welcome"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to e-agora"
+    >
       <h2>Welcome to the agora</h2>
       <p class="muted">
-        Two public figures enter — you pick who you'd rather have as a leader. Thousands of these
-        one-on-one votes pool into a single, ever-shifting ranking — shaped by people,
-        not editors.
+        Two public figures enter — you pick who you'd rather have as a leader.
+        Thousands of these one-on-one votes pool into a single, ever-shifting
+        ranking — shaped by people, not editors.
       </p>
 
       <p class="privacy-note">
-        🔒 <strong>Your votes are anonymous.</strong> We record only your choices —
-        never your identity. No account, no email, no name, no IP-address or device
-        tracking. There's nothing to sign up for and nothing that can be traced back
-        to you: just your picks, pooled with everyone else's.
+        🔒 <strong>Your votes are anonymous.</strong> We record only your
+        choices — never your identity. No account, no email, no name, no
+        IP-address or device tracking. There's nothing to sign up for and
+        nothing that can be traced back to you: just your picks, pooled with
+        everyone else's.
       </p>
 
       <div class="region-step">
         <p class="region-q">Where do you follow politics most closely?</p>
-        <div class="region-chips" role="group" aria-label="Choose your home region">
+        <div
+          class="region-chips"
+          role="group"
+          aria-label="Choose your home region"
+        >
           <button
             v-for="r in REGIONS"
             :key="r"
@@ -52,8 +63,8 @@ function enter() {
           </button>
         </div>
         <p class="region-hint muted">
-          We'll lean your matchups toward people you're likelier to know — without
-          ever hiding the rest of the world.
+          We'll lean your matchups toward people you're likelier to know —
+          without ever hiding the rest of the world.
         </p>
       </div>
 
@@ -86,7 +97,8 @@ function enter() {
   background: var(--card);
   color: var(--ink-soft);
   cursor: pointer;
-  transition: border-color 0.16s, background 0.16s, color 0.16s, box-shadow 0.16s;
+  transition: border-color 0.16s, background 0.16s, color 0.16s,
+    box-shadow 0.16s;
 }
 .region-chip:hover {
   border-color: var(--laurel);
