@@ -12,8 +12,8 @@ const (
 
 // Limiter is a per-key token-bucket rate limiter (R11). A key is typically an
 // anonymous session id. Buckets live in memory and are swept when idle; for
-// multi-instance deployments swap this for a shared store (same Allow contract).
-// Safe for concurrent use.
+// multi-instance deployments swap this for a shared store (same Allow
+// contract). Safe for concurrent use.
 type Limiter struct {
 	mu      sync.Mutex
 	buckets map[string]*bucket
@@ -28,7 +28,8 @@ type bucket struct {
 	last   time.Time
 }
 
-// New builds a limiter allowing bursts up to `burst` and a sustained `ratePerSec`.
+// New builds a limiter allowing bursts up to `burst` and a sustained
+// `ratePerSec`.
 func New(burst int, ratePerSec float64) *Limiter {
 	return &Limiter{
 		buckets: make(map[string]*bucket),

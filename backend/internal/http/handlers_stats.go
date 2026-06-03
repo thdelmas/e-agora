@@ -9,8 +9,8 @@ import (
 //
 // Public transparency dashboard data. Unlike the leaderboard this is NOT gated:
 // the figures are aggregate counts over anonymous data and reveal nothing about
-// any individual visitor (docs/04-api.md §GET /api/stats). No session is minted
-// — reading the stats shouldn't create a visitor.
+// any individual visitor (docs/04-api.md §GET /api/stats). No session is
+// minted — reading the stats shouldn't create a visitor.
 
 type statsTotals struct {
 	Votes           int `json:"votes"`
@@ -43,7 +43,8 @@ func (h *handlers) stats(w http.ResponseWriter, r *http.Request) {
 	st, err := h.store.Stats(r.Context(), days)
 	if err != nil {
 		h.logger.Error("stats", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not load the stats.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not load the stats.")
 		return
 	}
 

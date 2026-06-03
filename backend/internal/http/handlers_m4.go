@@ -32,7 +32,8 @@ func (h *handlers) me(w http.ResponseWriter, r *http.Request) {
 	sess := sessionFrom(r.Context())
 	resp := meResponse{Contributions: sess.Contributions}
 
-	if sess.HumanVerifiedUntil != nil && sess.HumanVerifiedUntil.After(time.Now()) {
+	if sess.HumanVerifiedUntil != nil &&
+		sess.HumanVerifiedUntil.After(time.Now()) {
 		resp.HumanVerified = true
 		resp.HumanVerifiedUntil = sess.HumanVerifiedUntil.UTC().Format(time.RFC3339)
 	}
@@ -51,14 +52,15 @@ func (h *handlers) me(w http.ResponseWriter, r *http.Request) {
 // --- GET /api/leaderboard (gated, R4+R10) ------------------------------------
 
 type leaderboardEntry struct {
-	Rank            int                 `json:"rank"`
-	Subject         model.SubjectPublic `json:"subject"`
-	Rating          float64             `json:"rating"`
-	RatingDeviation float64             `json:"ratingDeviation"` // Glicko-2 RD; high = provisional
-	Wins            int                 `json:"wins"`
-	Losses          int                 `json:"losses"`
-	Comparisons     int                 `json:"comparisons"`
-	Lang            string              `json:"lang"`
+	Rank    int                 `json:"rank"`
+	Subject model.SubjectPublic `json:"subject"`
+	Rating  float64             `json:"rating"`
+	// Glicko-2 RD; high = provisional
+	RatingDeviation float64 `json:"ratingDeviation"`
+	Wins            int     `json:"wins"`
+	Losses          int     `json:"losses"`
+	Comparisons     int     `json:"comparisons"`
+	Lang            string  `json:"lang"`
 }
 
 type leaderboardResponse struct {
@@ -79,17 +81,23 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 	subs, err := h.store.TopByRating(r.Context(), limit, offset, h.poolFrom(r))
 	if err != nil {
 		h.logger.Error("leaderboard", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not load the rankings.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not load the rankings.")
 		return
 	}
 	total, err := h.store.TotalVotes(r.Context())
 	if err != nil {
 		h.logger.Error("total votes", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not load the rankings.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not load the rankings.")
 		return
 	}
 
-	display := lang.Pick(r.URL.Query().Get("lang"), r.Header.Get("Accept-Language"), h.cfg.FallbackLang)
+	display := lang.Pick(
+		r.URL.Query().Get("lang"),
+		r.Header.Get("Accept-Language"),
+		h.cfg.FallbackLang,
+	)
 	entries := make([]leaderboardEntry, 0, len(subs))
 	for i, s := range subs {
 		tr := h.localize(r.Context(), s, display)
@@ -105,25 +113,31 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, leaderboardResponse{
-		TotalVotes: total, Limit: limit, Offset: offset, Count: len(entries), Entries: entries,
+		TotalVotes: total, Limit: limit, Offset: offset,
+		Count: len(entries), Entries: entries,
 	})
 }
 
 // requireAccess enforces the leaderboard/add gate: a valid, non-expired access
 // token. It writes the 403 and returns ok=false on failure.
-func (h *handlers) requireAccess(w http.ResponseWriter, r *http.Request) (token.Claims, bool) {
+func (h *handlers) requireAccess(
+	w http.ResponseWriter, r *http.Request,
+) (token.Claims, bool) {
 	c, err := r.Cookie(accessCookie)
 	if err != nil {
-		writeError(w, http.StatusForbidden, "access_required", "Vote once to unlock the rankings for 24 hours.")
+		writeError(w, http.StatusForbidden, "access_required",
+			"Vote once to unlock the rankings for 24 hours.")
 		return token.Claims{}, false
 	}
 	claims, err := token.Verify(h.cfg.TokenSecret, c.Value)
 	if errors.Is(err, token.ErrExpired) {
-		writeError(w, http.StatusForbidden, "access_expired", "Your 24-hour access has expired — vote again to unlock.")
+		writeError(w, http.StatusForbidden, "access_expired",
+			"Your 24-hour access has expired — vote again to unlock.")
 		return token.Claims{}, false
 	}
 	if err != nil {
-		writeError(w, http.StatusForbidden, "access_required", "Vote once to unlock the rankings for 24 hours.")
+		writeError(w, http.StatusForbidden, "access_required",
+			"Vote once to unlock the rankings for 24 hours.")
 		return token.Claims{}, false
 	}
 	return claims, true
@@ -144,15 +158,19 @@ func (h *handlers) addSubject(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.cfg.RateLimitOn {
 		if allowed, retry := h.limiter.Allow(sess.ID); !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
-			writeError(w, http.StatusTooManyRequests, "rate_limited", "Whoa — slow down a moment.")
+			w.Header().Set("Retry-After",
+				strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+			writeError(w, http.StatusTooManyRequests, "rate_limited",
+				"Whoa — slow down a moment.")
 			return
 		}
 	}
 
 	var req addSubjectRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "Malformed request body.")
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	if err := dec.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"Malformed request body.")
 		return
 	}
 
@@ -161,16 +179,23 @@ func (h *handlers) addSubject(w http.ResponseWriter, r *http.Request) {
 		claims.Jti, time.Unix(claims.Exp, 0))
 	switch {
 	case errors.Is(err, subjects.ErrNotPerson):
-		writeError(w, http.StatusUnprocessableEntity, "not_a_person", "e-agora is for people — that page isn't a person.")
-	case errors.Is(err, subjects.ErrNoPage), errors.Is(err, subjects.ErrBadInput):
-		writeError(w, http.StatusUnprocessableEntity, "not_a_wikipedia_page", "We couldn't find a Wikipedia page for that.")
+		writeError(w, http.StatusUnprocessableEntity, "not_a_person",
+			"e-agora is for people — that page isn't a person.")
+	case errors.Is(err, subjects.ErrNoPage),
+		errors.Is(err, subjects.ErrBadInput):
+		writeError(w, http.StatusUnprocessableEntity, "not_a_wikipedia_page",
+			"We couldn't find a Wikipedia page for that.")
 	case errors.Is(err, subjects.ErrExists):
-		writeError(w, http.StatusConflict, "already_exists", "They're already in the agora.")
+		writeError(w, http.StatusConflict, "already_exists",
+			"They're already in the agora.")
 	case errors.Is(err, subjects.ErrAddLimit):
-		writeError(w, http.StatusTooManyRequests, "add_limit_reached", "You can add one person per 24 hours — vote again after your access renews.")
+		writeError(w, http.StatusTooManyRequests, "add_limit_reached",
+			"You can add one person per 24 hours — vote again after your "+
+				"access renews.")
 	case err != nil:
 		h.logger.Error("add subject", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not add that subject.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not add that subject.")
 	default:
 		writeJSON(w, http.StatusCreated, map[string]any{"subject": out})
 	}
@@ -184,11 +209,16 @@ func (h *handlers) subjectsSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "q is required.")
 		return
 	}
-	l := lang.Pick(r.URL.Query().Get("lang"), r.Header.Get("Accept-Language"), h.cfg.FallbackLang)
+	l := lang.Pick(
+		r.URL.Query().Get("lang"),
+		r.Header.Get("Accept-Language"),
+		h.cfg.FallbackLang,
+	)
 	results, err := h.ingest.Search(r.Context(), l, q, 8)
 	if err != nil {
 		h.logger.Error("subjects search", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Search is unavailable right now.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Search is unavailable right now.")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
@@ -197,13 +227,14 @@ func (h *handlers) subjectsSearch(w http.ResponseWriter, r *http.Request) {
 // --- GET /api/countries ------------------------------------------------------
 
 // countries lists the countries with enough subjects to form a finer-grained
-// region pool (docs/10 §4), for the pool picker. Public reference data — ungated,
-// no session — so the picker populates on the (public) voting view.
+// region pool (docs/10 §4), for the pool picker. Public reference data —
+// ungated, no session — so the picker populates on the (public) voting view.
 func (h *handlers) countries(w http.ResponseWriter, r *http.Request) {
 	cs, err := h.store.Countries(r.Context())
 	if err != nil {
 		h.logger.Error("countries", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not load the country list.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not load the country list.")
 		return
 	}
 	if cs == nil {
@@ -212,8 +243,8 @@ func (h *handlers) countries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"countries": cs})
 }
 
-// poolFrom reads the visitor's pool selection (docs/10 §4) from the query — the
-// scope shared by the matchup draw and the leaderboard view: status
+// poolFrom reads the visitor's pool selection (docs/10 §4) from the query —
+// the scope shared by the matchup draw and the leaderboard view: status
 // (?includeDeceased), region (?region=Europe), country (?country=France), and
 // fame tier (?fameTier=top). Region and country are the same geographic axis at
 // two zoom levels; the picker sends only one, but both compose if present. An

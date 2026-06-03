@@ -11,7 +11,8 @@ func TestParseLeaderResponse(t *testing.T) {
 			{"person": {"type": "uri", "value": "http://www.wikidata.org/entity/Q567"}},
 			{"person": {"type": "uri", "value": "http://www.wikidata.org/entity/Q7747"}},
 			{"person": {"type": "uri", "value": "http://www.wikidata.org/entity/Q567"}},
-			{"person": {"type": "uri", "value": "http://www.wikidata.org/entity/NotAQid"}}
+			{"person": {"type": "uri", ` +
+		`"value": "http://www.wikidata.org/entity/NotAQid"}}
 		]}
 	}`)
 	got, err := parseLeaderResponse(raw)

@@ -19,9 +19,12 @@ type Summary struct {
 }
 
 // Summary fetches and parses the summary for a (lang, title).
-func (c *Client) Summary(ctx context.Context, lang, title string) (Summary, error) {
+func (c *Client) Summary(
+	ctx context.Context, lang, title string,
+) (Summary, error) {
 	var raw json.RawMessage
-	if err := c.getJSON(ctx, c.wikipediaSummaryURL(lang, title), &raw); err != nil {
+	if err := c.getJSON(
+		ctx, c.wikipediaSummaryURL(lang, title), &raw); err != nil {
 		return Summary{}, err
 	}
 	s, err := parseSummary(raw)
@@ -49,7 +52,8 @@ type summaryDoc struct {
 	} `json:"content_urls"`
 }
 
-// parseSummary extracts a Summary from a raw REST summary document. Pure (no I/O).
+// parseSummary extracts a Summary from a raw REST summary document. Pure (no
+// I/O).
 func parseSummary(raw []byte) (Summary, error) {
 	var d summaryDoc
 	if err := json.Unmarshal(raw, &d); err != nil {

@@ -23,11 +23,14 @@ var ErrNotFound = errors.New("upstream: not found")
 // are fields so tests can point them at a local server. It performs single
 // requests; pacing/politeness is the caller's concern (the seeder sleeps).
 type Client struct {
-	HTTP          *http.Client
-	WikidataBase  string // e.g. https://www.wikidata.org
-	WikipediaTmpl string // host template with %s for the language, e.g. https://%s.wikipedia.org
-	WDQSBase      string // Wikidata Query Service (SPARQL), e.g. https://query.wikidata.org
-	MetricsBase   string // Wikimedia REST metrics (pageviews), e.g. https://wikimedia.org
+	HTTP         *http.Client
+	WikidataBase string // e.g. https://www.wikidata.org
+	// host template with %s for the language, e.g. https://%s.wikipedia.org
+	WikipediaTmpl string
+	// Wikidata Query Service (SPARQL), e.g. https://query.wikidata.org
+	WDQSBase string
+	// Wikimedia REST metrics (pageviews), e.g. https://wikimedia.org
+	MetricsBase string
 }
 
 // NewClient returns a Client with sensible production defaults.

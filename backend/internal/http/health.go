@@ -16,8 +16,10 @@ func (h *handlers) healthz(w http.ResponseWriter, r *http.Request) {
 	n, err := h.store.CountSubjects(r.Context())
 	if err != nil {
 		h.logger.Error("healthz: count subjects", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Health check failed.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Health check failed.")
 		return
 	}
-	writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Subjects: n, Seeded: n > 0})
+	writeJSON(w, http.StatusOK,
+		healthResponse{Status: "ok", Subjects: n, Seeded: n > 0})
 }

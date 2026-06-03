@@ -24,7 +24,9 @@ const challengeTTL = 10 * time.Minute
 
 // NewRouter builds the top-level HTTP handler with cross-cutting middleware and
 // the /api routes. Endpoints not yet implemented return 501.
-func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Handler {
+func NewRouter(
+	cfg config.Config, db *store.Store, logger *slog.Logger,
+) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -49,8 +51,10 @@ func NewRouter(cfg config.Config, db *store.Store, logger *slog.Logger) http.Han
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/healthz", h.healthz)
-		r.Get("/stats", h.stats)         // public transparency dashboard (ungated, no session)
-		r.Get("/countries", h.countries) // public reference data for the pool picker (ungated)
+		// public transparency dashboard (ungated, no session)
+		r.Get("/stats", h.stats)
+		// public reference data for the pool picker (ungated)
+		r.Get("/countries", h.countries)
 
 		// Routes needing an anonymous session.
 		r.Group(func(r chi.Router) {

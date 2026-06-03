@@ -11,8 +11,9 @@ import (
 	"github.com/thdelmas/e-agora/backend/internal/token"
 )
 
-// controlEvery: roughly 1 in N challenges is a sincere "control" statement (pass
-// = agree) so an "always dissent" bot also fails (docs/01-functional-spec.md S4).
+// controlEvery: roughly 1 in N challenges is a sincere "control" statement
+// (pass = agree) so an "always dissent" bot also fails
+// (docs/01-functional-spec.md S4).
 const controlEvery = 4
 
 // Pool is the rotating prompt set (data/humanity_prompts.json).
@@ -21,15 +22,17 @@ type Pool struct {
 	Controls []string `json:"controls"`
 }
 
-// Checker mints and verifies dissent-based humanity challenges (R12). Stateless:
-// the challenge is a signed envelope, so no challenge table is needed.
+// Checker mints and verifies dissent-based humanity challenges (R12).
+// Stateless: the challenge is a signed envelope, so no challenge table is
+// needed.
 type Checker struct {
 	secret       string
 	prompts      Pool
 	challengeTTL time.Duration
 }
 
-// Option is a click choice shown to the visitor (the pass option is never marked).
+// Option is a click choice shown to the visitor (the pass option is never
+// marked).
 type Option struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
@@ -58,9 +61,9 @@ type envelope struct {
 	Exp   int64  `json:"e"`
 }
 
-// New loads the prompt pool and returns a Checker. challengeTTL bounds how long a
-// challenge may be solved (short); the 24h human-verified window is applied by
-// the caller on success.
+// New loads the prompt pool and returns a Checker. challengeTTL bounds how
+// long a challenge may be solved (short); the 24h human-verified window is
+// applied by the caller on success.
 func New(secret string, challengeTTL time.Duration) (*Checker, error) {
 	pool, err := loadPool()
 	if err != nil {
@@ -69,7 +72,9 @@ func New(secret string, challengeTTL time.Duration) (*Checker, error) {
 	if len(pool.Oaths) == 0 {
 		return nil, errors.New("human: prompt pool has no oaths")
 	}
-	return &Checker{secret: secret, prompts: pool, challengeTTL: challengeTTL}, nil
+	return &Checker{
+		secret: secret, prompts: pool, challengeTTL: challengeTTL,
+	}, nil
 }
 
 // NewChallenge builds a fresh, signed challenge with randomized option order.
@@ -91,7 +96,10 @@ func (c *Checker) NewChallenge() (Challenge, error) {
 	if err != nil {
 		return Challenge{}, err
 	}
-	payload, err := json.Marshal(envelope{Kind: kind, Pass: pass, Nonce: nonce, Exp: time.Now().Add(c.challengeTTL).Unix()})
+	payload, err := json.Marshal(envelope{
+		Kind: kind, Pass: pass, Nonce: nonce,
+		Exp: time.Now().Add(c.challengeTTL).Unix(),
+	})
 	if err != nil {
 		return Challenge{}, err
 	}
@@ -103,11 +111,13 @@ func (c *Checker) NewChallenge() (Challenge, error) {
 	}, nil
 }
 
-// Verify checks a submitted answer. It returns whether the session should become
-// human-verified and a machine reason on failure. The timing signal is SOFT: it
-// only rejects on positive evidence of an instant/scripted click — missing
-// timing never blocks (accessibility, R12).
-func (c *Checker) Verify(challengeID, answer string, t Timing) (ok bool, reason string) {
+// Verify checks a submitted answer. It returns whether the session should
+// become human-verified and a machine reason on failure. The timing signal is
+// SOFT: it only rejects on positive evidence of an instant/scripted click —
+// missing timing never blocks (accessibility, R12).
+func (c *Checker) Verify(
+	challengeID, answer string, t Timing,
+) (ok bool, reason string) {
 	payload, err := token.Open(c.secret, challengeID)
 	if err != nil {
 		return false, "invalid"

@@ -10,12 +10,12 @@ import (
 // Stats returns an aggregate, privacy-preserving activity snapshot: all-time
 // headline totals plus a gap-filled daily time series for the trailing `days`
 // UTC-days (docs/04-api.md §GET /api/stats). Everything is a COUNT over
-// anonymous data — no per-visitor rows leave the database, and the visitor's IP
-// is never stored to begin with, so nothing here can identify anyone.
+// anonymous data — no per-visitor rows leave the database, and the visitor's
+// IP is never stored to begin with, so nothing here can identify anyone.
 //
-// "Visitors" is derived from sessions.created_at — the first time a browser is
-// seen — so it counts *new* anonymous browsers per day rather than raw page
-// views (which e-agora deliberately does not log). At v1 scale the daily
+// "Visitors" is derived from sessions.created_at — the first time a browser
+// is seen — so it counts *new* anonymous browsers per day rather than raw
+// page views (which e-agora deliberately does not log). At v1 scale the daily
 // aggregation full-scans votes/sessions/subjects; revisit with a rollup table
 // if the pool grows large.
 func (s *Store) Stats(ctx context.Context, days int) (model.Stats, error) {
@@ -43,7 +43,8 @@ func (s *Store) Stats(ctx context.Context, days int) (model.Stats, error) {
 	rows, err := s.pool.Query(ctx, `
 		WITH days AS (
 			SELECT generate_series(
-				date_trunc('day', now() AT TIME ZONE 'UTC') - (($1::int - 1) * interval '1 day'),
+				date_trunc('day', now() AT TIME ZONE 'UTC') `+
+		`- (($1::int - 1) * interval '1 day'),
 				date_trunc('day', now() AT TIME ZONE 'UTC'),
 				interval '1 day'
 			)::date AS day
@@ -77,7 +78,8 @@ func (s *Store) Stats(ctx context.Context, days int) (model.Stats, error) {
 	st.Daily = make([]model.DailyStat, 0, days)
 	for rows.Next() {
 		var d model.DailyStat
-		if err := rows.Scan(&d.Date, &d.Votes, &d.Voters, &d.Visitors, &d.Added); err != nil {
+		if err := rows.Scan(&d.Date, &d.Votes, &d.Voters, &d.Visitors,
+			&d.Added); err != nil {
 			return model.Stats{}, fmt.Errorf("scan daily stat: %w", err)
 		}
 		st.Daily = append(st.Daily, d)

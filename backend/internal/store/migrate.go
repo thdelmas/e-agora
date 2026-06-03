@@ -74,7 +74,9 @@ func (s *Store) appliedVersions(ctx context.Context) (map[int]bool, error) {
 }
 
 // applyOne runs a single migration file and records its version atomically.
-func (s *Store) applyOne(ctx context.Context, fsys fs.FS, name string, version int) error {
+func (s *Store) applyOne(
+	ctx context.Context, fsys fs.FS, name string, version int,
+) error {
 	body, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", name, err)
@@ -89,7 +91,9 @@ func (s *Store) applyOne(ctx context.Context, fsys fs.FS, name string, version i
 	if _, err := tx.Exec(ctx, string(body)); err != nil {
 		return fmt.Errorf("apply %s: %w", name, err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, version); err != nil {
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO schema_migrations (version) VALUES ($1)`,
+		version); err != nil {
 		return fmt.Errorf("record %s: %w", name, err)
 	}
 	if err := tx.Commit(ctx); err != nil {

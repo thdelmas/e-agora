@@ -19,9 +19,10 @@ var (
 
 // NewSubject carries the fields needed to create a user-added subject (R8).
 type NewSubject struct {
-	QID, Name      string
-	Langs          []string
-	DiedAt         string // normalized YYYY-MM-DD date of death, or "" (living/unknown)
+	QID, Name string
+	Langs     []string
+	// normalized YYYY-MM-DD date of death, or "" (living/unknown)
+	DiedAt         string
 	EnName, EnDesc string
 	EnExtract      string
 	EnImage, EnURL string
@@ -29,9 +30,12 @@ type NewSubject struct {
 
 // SubjectIDByQID returns the id of a subject with the given QID, and whether it
 // exists — used to reject duplicate adds early with a helpful 409.
-func (s *Store) SubjectIDByQID(ctx context.Context, qid string) (int64, bool, error) {
+func (s *Store) SubjectIDByQID(
+	ctx context.Context, qid string,
+) (int64, bool, error) {
 	var id int64
-	err := s.pool.QueryRow(ctx, `SELECT id FROM subjects WHERE wikidata_id = $1`, qid).Scan(&id)
+	err := s.pool.QueryRow(ctx,
+		`SELECT id FROM subjects WHERE wikidata_id = $1`, qid).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	}
@@ -41,26 +45,31 @@ func (s *Store) SubjectIDByQID(ctx context.Context, qid string) (int64, bool, er
 	return id, true, nil
 }
 
-// AddTokenUsed reports whether a token (by jti) has already spent its one add —
-// a cheap precheck before doing any network work.
+// AddTokenUsed reports whether a token (by jti) has already spent its one
+// add — a cheap precheck before doing any network work.
 func (s *Store) AddTokenUsed(ctx context.Context, jti string) (bool, error) {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM subject_add_log WHERE jti = $1)`, jti).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM subject_add_log WHERE jti = $1)`,
+		jti).Scan(&exists); err != nil {
 		return false, fmt.Errorf("add-token check: %w", err)
 	}
 	return exists, nil
 }
 
 // InsertUserSubject creates a user-added subject, its English translation, and
-// claims the token's single add allowance — all atomically (R8.1). The jti claim
-// is the LAST gate, so a duplicate-QID (ErrAlreadyExists) or a spent token
-// (ErrAddLimit) rolls back without consuming the allowance.
+// claims the token's single add allowance — all atomically (R8.1). The jti
+// claim is the LAST gate, so a duplicate-QID (ErrAlreadyExists) or a spent
+// token (ErrAddLimit) rolls back without consuming the allowance.
 // InsertRecalledSubject inserts a subject named in the belonging recall step
-// (docs/11 §3) — like InsertUserSubject but *without* the one-per-token add-log
-// claim, because recall precedes any vote so there is no access token to gate on.
-// The per-session rate limit, the is-human/page checks upstream, and belonging
-// demotion are the controls instead. Returns ErrAlreadyExists if the QID raced in.
-func (s *Store) InsertRecalledSubject(ctx context.Context, ns NewSubject) (int64, error) {
+// (docs/11 §3) — like InsertUserSubject but *without* the one-per-token
+// add-log claim, because recall precedes any vote so there is no access token
+// to gate on. The per-session rate limit, the is-human/page checks upstream,
+// and belonging demotion are the controls instead. Returns ErrAlreadyExists if
+// the QID raced in.
+func (s *Store) InsertRecalledSubject(
+	ctx context.Context, ns NewSubject,
+) (int64, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -69,7 +78,8 @@ func (s *Store) InsertRecalledSubject(ctx context.Context, ns NewSubject) (int64
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs, died_at)
+		INSERT INTO subjects `+`(wikidata_id, canonical_name, source, `+
+		`available_langs, died_at)
 		VALUES ($1, $2, 'user', $3, NULLIF($4, '')::date) RETURNING id`,
 		ns.QID, ns.Name, ns.Langs, ns.DiedAt).Scan(&id)
 	if err != nil {
@@ -80,9 +90,12 @@ func (s *Store) InsertRecalledSubject(ctx context.Context, ns NewSubject) (int64
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO subject_translations (subject_id, lang, name, description, extract, image_url, wikipedia_url)
-		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6)`,
-		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage, ns.EnURL); err != nil {
+		INSERT INTO subject_translations `+`(subject_id, lang, name, `+
+		`description, extract, image_url, wikipedia_url)
+		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), `+
+		`NULLIF($5, ''), $6)`,
+		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage,
+		ns.EnURL); err != nil {
 		return 0, fmt.Errorf("insert translation: %w", err)
 	}
 
@@ -92,7 +105,9 @@ func (s *Store) InsertRecalledSubject(ctx context.Context, ns NewSubject) (int64
 	return id, nil
 }
 
-func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string, tokenExp time.Time) (int64, error) {
+func (s *Store) InsertUserSubject(
+	ctx context.Context, ns NewSubject, jti string, tokenExp time.Time,
+) (int64, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -101,7 +116,8 @@ func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO subjects (wikidata_id, canonical_name, source, available_langs, died_at)
+		INSERT INTO subjects `+`(wikidata_id, canonical_name, source, `+
+		`available_langs, died_at)
 		VALUES ($1, $2, 'user', $3, NULLIF($4, '')::date) RETURNING id`,
 		ns.QID, ns.Name, ns.Langs, ns.DiedAt).Scan(&id)
 	if err != nil {
@@ -123,9 +139,12 @@ func (s *Store) InsertUserSubject(ctx context.Context, ns NewSubject, jti string
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO subject_translations (subject_id, lang, name, description, extract, image_url, wikipedia_url)
-		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6)`,
-		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage, ns.EnURL); err != nil {
+		INSERT INTO subject_translations `+`(subject_id, lang, name, `+
+		`description, extract, image_url, wikipedia_url)
+		VALUES ($1, 'en', $2, NULLIF($3, ''), NULLIF($4, ''), `+
+		`NULLIF($5, ''), $6)`,
+		id, ns.EnName, ns.EnDesc, ns.EnExtract, ns.EnImage,
+		ns.EnURL); err != nil {
 		return 0, fmt.Errorf("insert translation: %w", err)
 	}
 

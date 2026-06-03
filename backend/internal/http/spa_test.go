@@ -9,8 +9,9 @@ import (
 	"testing"
 )
 
-// writeTestSPA lays down a minimal built-SPA dir: an index.html carrying the same
-// default <title>/<meta description> as frontend/index.html, plus one real asset.
+// writeTestSPA lays down a minimal built-SPA dir: an index.html carrying the
+// same default <title>/<meta description> as frontend/index.html, plus one
+// real asset.
 func writeTestSPA(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -18,10 +19,14 @@ func writeTestSPA(t *testing.T) string {
 		seoDefaultTitle +
 		seoDefaultDesc +
 		`</head><body><div id="app"></div></body></html>`
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte(index), 0o644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "index.html"), []byte(index), 0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log(1)"), 0o644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "app.js"), []byte("console.log(1)"), 0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -62,16 +67,19 @@ func TestSPA_InjectsPerRouteSEO(t *testing.T) {
 	if strings.Contains(stats, seoDefaultTitle) {
 		t.Error("/stats still carries the default title")
 	}
-	if !strings.Contains(stats, `<link rel="canonical" href="https://e-agora.test/stats" />`) {
+	if !strings.Contains(stats,
+		`<link rel="canonical" href="https://e-agora.test/stats" />`) {
 		t.Error("/stats canonical wrong")
 	}
 
-	// Unknown route → noindex, canonical pinned to the homepage (soft-404 guard).
+	// Unknown route → noindex, canonical pinned to the homepage
+	// (soft-404 guard).
 	_, unknown := get(t, h, "/does-not-exist")
 	if !strings.Contains(unknown, `<meta name="robots" content="noindex" />`) {
 		t.Error("unknown route should be noindex")
 	}
-	if !strings.Contains(unknown, `<link rel="canonical" href="https://e-agora.test/" />`) {
+	if !strings.Contains(unknown,
+		`<link rel="canonical" href="https://e-agora.test/" />`) {
 		t.Error("unknown route canonical should point home")
 	}
 }
@@ -91,7 +99,9 @@ func TestSPA_RobotsAndSitemap(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("robots status %d", code)
 	}
-	for _, want := range []string{"Disallow: /api/", "Sitemap: https://e-agora.test/sitemap.xml"} {
+	for _, want := range []string{
+		"Disallow: /api/", "Sitemap: https://e-agora.test/sitemap.xml",
+	} {
 		if !strings.Contains(robots, want) {
 			t.Errorf("robots.txt missing %q", want)
 		}
@@ -101,7 +111,10 @@ func TestSPA_RobotsAndSitemap(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("sitemap status %d", code)
 	}
-	for _, want := range []string{"<loc>https://e-agora.test/</loc>", "<loc>https://e-agora.test/stats</loc>"} {
+	for _, want := range []string{
+		"<loc>https://e-agora.test/</loc>",
+		"<loc>https://e-agora.test/stats</loc>",
+	} {
 		if !strings.Contains(sitemap, want) {
 			t.Errorf("sitemap missing %q", want)
 		}
@@ -121,7 +134,8 @@ func TestBaseURL_FallbackFromRequest(t *testing.T) {
 	if got := baseURL(req, ""); got != "https://app.onrender.com" {
 		t.Errorf("baseURL fallback = %q", got)
 	}
-	if got := baseURL(req, "https://fixed.example"); got != "https://fixed.example" {
+	if got := baseURL(req, "https://fixed.example"); got !=
+		"https://fixed.example" {
 		t.Errorf("explicit publicURL should win, got %q", got)
 	}
 }

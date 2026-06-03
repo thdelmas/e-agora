@@ -11,13 +11,15 @@ import (
 // humanChallenge issues an anonymous dissent-based humanity challenge (R12).
 func (h *handlers) humanChallenge(w http.ResponseWriter, r *http.Request) {
 	if h.human == nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Humanity check unavailable.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Humanity check unavailable.")
 		return
 	}
 	ch, err := h.human.NewChallenge()
 	if err != nil {
 		h.logger.Error("human: new challenge", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not issue a challenge.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not issue a challenge.")
 		return
 	}
 	writeJSON(w, http.StatusOK, ch)
@@ -43,14 +45,17 @@ type humanVerifyResponse struct {
 // window (R12), on failure it returns a fresh challenge.
 func (h *handlers) humanVerify(w http.ResponseWriter, r *http.Request) {
 	if h.human == nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Humanity check unavailable.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Humanity check unavailable.")
 		return
 	}
 	sess := sessionFrom(r.Context())
 
 	var req humanVerifyRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "Malformed request body.")
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
+	if err := dec.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"Malformed request body.")
 		return
 	}
 
@@ -59,7 +64,8 @@ func (h *handlers) humanVerify(w http.ResponseWriter, r *http.Request) {
 		until := time.Now().Add(h.cfg.HumanTTL)
 		if err := h.store.MarkHuman(r.Context(), sess.ID, until); err != nil {
 			h.logger.Error("human: mark verified", "err", err)
-			writeError(w, http.StatusInternalServerError, "internal", "Could not record verification.")
+			writeError(w, http.StatusInternalServerError, "internal",
+				"Could not record verification.")
 			return
 		}
 		writeJSON(w, http.StatusOK, humanVerifyResponse{
@@ -73,7 +79,8 @@ func (h *handlers) humanVerify(w http.ResponseWriter, r *http.Request) {
 	ch, err := h.human.NewChallenge()
 	if err != nil {
 		h.logger.Error("human: new challenge", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Could not issue a challenge.")
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not issue a challenge.")
 		return
 	}
 	writeJSON(w, http.StatusOK, humanVerifyResponse{

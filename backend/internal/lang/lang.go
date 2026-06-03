@@ -24,8 +24,8 @@ func FromAccept(header string) string {
 	return normalize(first)
 }
 
-// Pick resolves the visitor's preferred code: an explicit override (?lang=) wins,
-// then the Accept-Language header, then the configured fallback.
+// Pick resolves the visitor's preferred code: an explicit override (?lang=)
+// wins, then the Accept-Language header, then the configured fallback.
 func Pick(override, acceptHeader, fallback string) string {
 	if c := normalize(override); c != "" {
 		return c
@@ -39,7 +39,9 @@ func Pick(override, acceptHeader, fallback string) string {
 // Resolve applies R9 for a matchup pair: the display language is `visitor` iff
 // both subjects have it, else `fallback`. fellBack is true when the visitor's
 // language was dropped (drives the "shown in English" note).
-func Resolve(visitor, fallback string, aLangs, bLangs []string) (display string, fellBack bool) {
+func Resolve(
+	visitor, fallback string, aLangs, bLangs []string,
+) (display string, fellBack bool) {
 	if visitor != "" && has(aLangs, visitor) && has(bLangs, visitor) {
 		return visitor, false
 	}

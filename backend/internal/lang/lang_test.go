@@ -37,16 +37,29 @@ func TestResolve_R9(t *testing.T) {
 		wantDisplay  string
 		wantFellBack bool
 	}{
-		{"both have visitor lang", "fr", []string{"fr", "en"}, []string{"fr", "en", "de"}, "fr", false},
-		{"one lacks it → English both", "fr", []string{"fr", "en"}, []string{"en", "de"}, "en", true},
-		{"no preference → fallback, no note", "", []string{"en"}, []string{"en"}, "en", false},
-		{"visitor already English", "en", []string{"en"}, []string{"en"}, "en", false},
+		{
+			"both have visitor lang", "fr",
+			[]string{"fr", "en"}, []string{"fr", "en", "de"}, "fr", false,
+		},
+		{
+			"one lacks it → English both", "fr",
+			[]string{"fr", "en"}, []string{"en", "de"}, "en", true,
+		},
+		{
+			"no preference → fallback, no note", "",
+			[]string{"en"}, []string{"en"}, "en", false,
+		},
+		{
+			"visitor already English", "en",
+			[]string{"en"}, []string{"en"}, "en", false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			d, fb := Resolve(c.visitor, "en", c.a, c.b)
 			if d != c.wantDisplay || fb != c.wantFellBack {
-				t.Errorf("Resolve = (%q,%v), want (%q,%v)", d, fb, c.wantDisplay, c.wantFellBack)
+				t.Errorf("Resolve = (%q,%v), want (%q,%v)",
+					d, fb, c.wantDisplay, c.wantFellBack)
 			}
 		})
 	}

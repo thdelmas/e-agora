@@ -22,48 +22,58 @@ type seoMeta struct {
 
 // seoPages maps a canonical path to its metadata. The "/" entry MUST match the
 // default <title>/<meta description> baked into frontend/index.html
-// (seoDefaultTitle / seoDefaultDesc) — the homepage reuses the file's defaults.
+// (seoDefaultTitle / seoDefaultDesc) — the homepage reuses the file's
+// defaults.
 var seoPages = map[string]seoMeta{
 	"/": {
-		title:       "e-agora — the people decide",
-		description: "A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora.",
+		title: "e-agora — the people decide",
+		description: "A worldwide ranking of public figures, decided one " +
+			"head-to-head at a time in the digital agora.",
 	},
 	"/leaderboard": {
-		title:       "World rankings — e-agora",
-		description: "Live world rankings of public figures, forged head-to-head from the aggregated preferences of anonymous visitors.",
+		title: "World rankings — e-agora",
+		description: "Live world rankings of public figures, forged " +
+			"head-to-head from the aggregated preferences of anonymous " +
+			"visitors.",
 	},
 	"/stats": {
-		title:       "Transparency stats — e-agora",
-		description: "Live aggregate stats for e-agora: votes cast, visitors, and figures added over time — anonymous counts only, nothing traceable to a visitor.",
+		title: "Transparency stats — e-agora",
+		description: "Live aggregate stats for e-agora: votes cast, " +
+			"visitors, and figures added over time — anonymous counts only, " +
+			"nothing traceable to a visitor.",
 	},
 }
 
-// sitemapPaths lists the public, ungated routes advertised in /sitemap.xml, in a
-// fixed order for deterministic output. /leaderboard is intentionally omitted: it
-// is gated behind a 24h access token and redirects unauthenticated visitors.
+// sitemapPaths lists the public, ungated routes advertised in /sitemap.xml,
+// in a fixed order for deterministic output. /leaderboard is intentionally
+// omitted: it is gated behind a 24h access token and redirects
+// unauthenticated visitors.
 var sitemapPaths = []string{"/", "/stats"}
 
-// Defaults baked into frontend/index.html that the backend swaps per route. Keep
-// them byte-identical to the file, or the swap silently no-ops (page still works,
-// it just keeps the homepage title/description).
+// Defaults baked into frontend/index.html that the backend swaps per route.
+// Keep them byte-identical to the file, or the swap silently no-ops (page
+// still works, it just keeps the homepage title/description).
 const (
 	seoDefaultTitle = "<title>e-agora — the people decide</title>"
-	seoDefaultDesc  = `<meta name="description" content="A worldwide ranking of public figures, decided one head-to-head at a time in the digital agora." />`
+	seoDefaultDesc  = `<meta name="description" content="A worldwide ` +
+		`ranking of public figures, decided one head-to-head at a time in ` +
+		`the digital agora." />`
 )
 
 // spaHandler serves the built single-page app from dir (M6, production
 // same-origin serving): a real file when one exists, otherwise index.html so
-// client-side routes like /leaderboard resolve. It additionally serves a dynamic
-// /robots.txt and /sitemap.xml, and injects per-route SEO tags into the index
-// fallback. It is mounted on the non-/api catch-all only when EAGORA_STATIC_DIR
-// is set. http.Dir constrains paths, so ".." traversal is rejected. publicURL is
-// the canonical origin for those tags (EAGORA_PUBLIC_URL; empty → derived from
-// the request).
+// client-side routes like /leaderboard resolve. It additionally serves a
+// dynamic /robots.txt and /sitemap.xml, and injects per-route SEO tags into
+// the index fallback. It is mounted on the non-/api catch-all only when
+// EAGORA_STATIC_DIR is set. http.Dir constrains paths, so ".." traversal is
+// rejected. publicURL is the canonical origin for those tags
+// (EAGORA_PUBLIC_URL; empty → derived from the request).
 func spaHandler(dir, publicURL string) http.HandlerFunc {
 	root := http.Dir(dir)
 	fileServer := http.FileServer(root)
 	indexPath := filepath.Join(dir, "index.html")
-	indexHTML, _ := os.ReadFile(indexPath) // read once; empty → plain ServeFile fallback
+	// read once; empty → plain ServeFile fallback
+	indexHTML, _ := os.ReadFile(indexPath)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -96,10 +106,10 @@ func spaHandler(dir, publicURL string) http.HandlerFunc {
 	}
 }
 
-// injectSEO returns index with this route's <title>/description swapped in and a
-// block of canonical + Open Graph + Twitter Card tags inserted before </head>.
-// Unknown paths (the SPA's soft 404s) are marked noindex and canonicalised to the
-// homepage so junk URLs are not indexed.
+// injectSEO returns index with this route's <title>/description swapped in
+// and a block of canonical + Open Graph + Twitter Card tags inserted before
+// </head>. Unknown paths (the SPA's soft 404s) are marked noindex and
+// canonicalised to the homepage so junk URLs are not indexed.
 func injectSEO(index []byte, r *http.Request, publicURL string) []byte {
 	canonPath := path.Clean(r.URL.Path)
 	if canonPath == "." || canonPath == "" {
@@ -119,7 +129,8 @@ func injectSEO(index []byte, r *http.Request, publicURL string) []byte {
 		doc = bytes.Replace(doc, []byte(seoDefaultTitle),
 			[]byte("<title>"+html.EscapeString(meta.title)+"</title>"), 1)
 		doc = bytes.Replace(doc, []byte(seoDefaultDesc),
-			[]byte(`<meta name="description" content="`+html.EscapeString(meta.description)+`" />`), 1)
+			[]byte(`<meta name="description" content="`+
+				html.EscapeString(meta.description)+`" />`), 1)
 	}
 
 	canonical := html.EscapeString(base + canonPath)
@@ -127,26 +138,39 @@ func injectSEO(index []byte, r *http.Request, publicURL string) []byte {
 	desc := html.EscapeString(meta.description)
 	image := html.EscapeString(base + "/og.png")
 
-	head.WriteString(`<link rel="canonical" href="` + canonical + `" />` + "\n    ")
-	head.WriteString(`<meta property="og:type" content="website" />` + "\n    ")
-	head.WriteString(`<meta property="og:site_name" content="e-agora" />` + "\n    ")
-	head.WriteString(`<meta property="og:title" content="` + title + `" />` + "\n    ")
-	head.WriteString(`<meta property="og:description" content="` + desc + `" />` + "\n    ")
-	head.WriteString(`<meta property="og:url" content="` + canonical + `" />` + "\n    ")
-	head.WriteString(`<meta property="og:image" content="` + image + `" />` + "\n    ")
-	head.WriteString(`<meta name="twitter:card" content="summary_large_image" />` + "\n    ")
-	head.WriteString(`<meta name="twitter:title" content="` + title + `" />` + "\n    ")
-	head.WriteString(`<meta name="twitter:description" content="` + desc + `" />` + "\n    ")
-	head.WriteString(`<meta name="twitter:image" content="` + image + `" />` + "\n  ")
+	head.WriteString(`<link rel="canonical" href="` + canonical +
+		`" />` + "\n    ")
+	head.WriteString(`<meta property="og:type" content="website" />` +
+		"\n    ")
+	head.WriteString(`<meta property="og:site_name" content="e-agora" />` +
+		"\n    ")
+	head.WriteString(`<meta property="og:title" content="` + title +
+		`" />` + "\n    ")
+	head.WriteString(`<meta property="og:description" content="` + desc +
+		`" />` + "\n    ")
+	head.WriteString(`<meta property="og:url" content="` + canonical +
+		`" />` + "\n    ")
+	head.WriteString(`<meta property="og:image" content="` + image +
+		`" />` + "\n    ")
+	head.WriteString(
+		`<meta name="twitter:card" content="summary_large_image" />` +
+			"\n    ")
+	head.WriteString(`<meta name="twitter:title" content="` + title +
+		`" />` + "\n    ")
+	head.WriteString(`<meta name="twitter:description" content="` + desc +
+		`" />` + "\n    ")
+	head.WriteString(`<meta name="twitter:image" content="` + image +
+		`" />` + "\n  ")
 
-	return bytes.Replace(doc, []byte("</head>"), []byte(head.String()+"</head>"), 1)
+	return bytes.Replace(doc, []byte("</head>"),
+		[]byte(head.String()+"</head>"), 1)
 }
 
 // baseURL returns the absolute origin (scheme://host, no trailing slash) for
-// canonical/OG URLs and the sitemap. EAGORA_PUBLIC_URL is authoritative when set
-// — a single fixed host avoids duplicate-content signals across the *.onrender.com
-// URL and any custom domain. Otherwise it is derived from the request, honoring
-// the proxy headers Render terminates TLS with.
+// canonical/OG URLs and the sitemap. EAGORA_PUBLIC_URL is authoritative when
+// set — a single fixed host avoids duplicate-content signals across the
+// *.onrender.com URL and any custom domain. Otherwise it is derived from the
+// request, honoring the proxy headers Render terminates TLS with.
 func baseURL(r *http.Request, publicURL string) string {
 	if publicURL != "" {
 		return publicURL
@@ -166,16 +190,20 @@ func baseURL(r *http.Request, publicURL string) string {
 
 func writeRobots(w http.ResponseWriter, r *http.Request, publicURL string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	io.WriteString(w, "User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: "+baseURL(r, publicURL)+"/sitemap.xml\n")
+	io.WriteString(w, "User-agent: *\nAllow: /\nDisallow: /api/\n\n"+
+		"Sitemap: "+baseURL(r, publicURL)+"/sitemap.xml\n")
 }
 
 func writeSitemap(w http.ResponseWriter, r *http.Request, publicURL string) {
 	base := baseURL(r, publicURL)
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
-	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	b.WriteString(
+		`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+			"\n")
 	for _, p := range sitemapPaths {
-		b.WriteString("  <url><loc>" + html.EscapeString(base+p) + "</loc><changefreq>daily</changefreq></url>\n")
+		b.WriteString("  <url><loc>" + html.EscapeString(base+p) +
+			"</loc><changefreq>daily</changefreq></url>\n")
 	}
 	b.WriteString("</urlset>\n")
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
