@@ -22,14 +22,18 @@ const (
 
 // PoolKey is the canonical identity of a pool's *scope* for the belonging axis
 // (docs/11 §5). Geography only — belonging is about who's *in* a scope, not the
-// fame/status view filters layered on top, so those don't change the key. Values:
-// "world" | "continent:Europe" | "country:France" (the country branch lands with
-// the country pool axis).
+// fame/status view filters layered on top, so those don't change the key. Country
+// is the finer scope and wins when both are set (the picker sends one or the
+// other). Values: "world" | "continent:Europe" | "country:France".
 func PoolKey(p Pool) string {
-	if p.Continent != "" {
+	switch {
+	case p.Country != "":
+		return "country:" + p.Country
+	case p.Continent != "":
 		return "continent:" + p.Continent
+	default:
+		return "world"
 	}
-	return "world"
 }
 
 // BelongingScore is the smoothed share of a pool's proposals that named this
