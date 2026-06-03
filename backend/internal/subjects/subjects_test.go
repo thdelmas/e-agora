@@ -48,6 +48,14 @@ func (f *fakeStore) InsertUserSubject(context.Context, store.NewSubject, string,
 	return 99, nil
 }
 
+func (f *fakeStore) InsertRecalledSubject(context.Context, store.NewSubject) (int64, error) {
+	if f.insertErr != nil {
+		return 0, f.insertErr
+	}
+	f.inserted++
+	return 99, nil
+}
+
 func human() fakeFetcher {
 	return fakeFetcher{
 		entity: func(string) (ingest.EntityFacts, error) {
@@ -56,6 +64,63 @@ func human() fakeFetcher {
 		summary: func(string, string) (ingest.Summary, error) {
 			return ingest.Summary{Name: "A Person", Description: "A politician.", WikipediaURL: "https://en.wikipedia.org/wiki/A_Person"}, nil
 		},
+	}
+}
+
+func humanWithResolve() fakeFetcher {
+	f := human()
+	f.resolve = func(string) (string, error) { return "Q1", nil }
+	return f
+}
+
+func TestEnsureFromURL(t *testing.T) {
+	t.Run("new person ingested ungated", func(t *testing.T) {
+		st := &fakeStore{} // no token, not exists
+		id, created, err := New(humanWithResolve(), st).EnsureFromURL(context.Background(), "https://en.wikipedia.org/wiki/A_Person")
+		if err != nil {
+			t.Fatalf("EnsureFromURL: %v", err)
+		}
+		if !created || id != 99 || st.inserted != 1 {
+			t.Errorf("want created id=99 inserted=1; got id=%d created=%v inserted=%d", id, created, st.inserted)
+		}
+	})
+
+	t.Run("existing person proposed, not re-inserted", func(t *testing.T) {
+		st := &fakeStore{exists: true}
+		_, created, err := New(humanWithResolve(), st).EnsureFromURL(context.Background(), "https://en.wikipedia.org/wiki/A_Person")
+		if err != nil {
+			t.Fatalf("EnsureFromURL: %v", err)
+		}
+		if created || st.inserted != 0 {
+			t.Errorf("want existing (not created, no insert); got created=%v inserted=%d", created, st.inserted)
+		}
+	})
+
+	notHuman := func() fakeFetcher {
+		f := humanWithResolve()
+		f.entity = func(string) (ingest.EntityFacts, error) {
+			return ingest.EntityFacts{QID: "Q1", IsHuman: false, EnwikiTitle: "X"}, nil
+		}
+		return f
+	}
+	cases := []struct {
+		name  string
+		fetch fakeFetcher
+		url   string
+		want  error
+	}{
+		{"empty url", humanWithResolve(), "", ErrBadInput},
+		{"resolve bad input", fakeFetcher{resolve: func(string) (string, error) { return "", ingest.ErrBadInput }}, "x", ErrBadInput},
+		{"resolve no page", fakeFetcher{resolve: func(string) (string, error) { return "", ingest.ErrNotFound }}, "x", ErrNoPage},
+		{"not a person", notHuman(), "x", ErrNotPerson},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, _, err := New(c.fetch, &fakeStore{}).EnsureFromURL(context.Background(), c.url)
+			if !errors.Is(err, c.want) {
+				t.Errorf("err = %v, want %v", err, c.want)
+			}
+		})
 	}
 }
 
