@@ -91,6 +91,39 @@ func (s *Store) RecordProposal(ctx context.Context, sessionID, poolKey string, s
 	return tx.Commit(ctx)
 }
 
+// SubjectRef is a minimal subject reference for the recall type-ahead (docs/11 §2).
+type SubjectRef struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// RecallSearch finds active subjects whose canonical name matches q, for the
+// "who comes to mind for this pool?" type-ahead (docs/11 §2). Case-insensitive
+// substring; most-compared first so a well-known figure surfaces above an obscure
+// namesake. Recall is deliberately *not* pool-scoped — naming someone the
+// geography didn't place here is itself the belonging signal. Capped at limit.
+func (s *Store) RecallSearch(ctx context.Context, q string, limit int) ([]SubjectRef, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, canonical_name FROM subjects
+		 WHERE active AND canonical_name ILIKE '%' || $1 || '%'
+		 ORDER BY comparisons DESC, canonical_name ASC
+		 LIMIT $2`, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("recall search: %w", err)
+	}
+	defer rows.Close()
+
+	out := []SubjectRef{}
+	for rows.Next() {
+		var r SubjectRef
+		if err := rows.Scan(&r.ID, &r.Name); err != nil {
+			return nil, fmt.Errorf("scan recall: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // BelongingEntry is one subject's belonging in a pool: its recall count and the
 // smoothed score (docs/11 §4).
 type BelongingEntry struct {

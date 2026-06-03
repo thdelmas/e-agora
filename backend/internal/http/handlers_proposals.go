@@ -6,10 +6,28 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/thdelmas/e-agora/backend/internal/store"
 )
+
+// recall searches active subjects by name for the recall type-ahead (docs/11 §2).
+// Public-with-session like the matchup; an empty q returns nothing.
+func (h *handlers) recall(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"results": []store.SubjectRef{}})
+		return
+	}
+	results, err := h.store.RecallSearch(r.Context(), q, 8)
+	if err != nil {
+		h.logger.Error("recall search", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal", "Search is unavailable right now.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+}
 
 type proposalRequest struct {
 	SubjectID int64 `json:"subjectId"`

@@ -42,4 +42,11 @@ export const api = {
   stats: (days) => request(`/stats${days ? `?days=${days}` : ''}`),
   // Countries with enough subjects to scope a pool, for the picker (docs/10 §4).
   countries: () => request('/countries'),
+  // Recall type-ahead over existing subjects, for the belonging step (docs/11 §2).
+  recall: (q) => request(`/subjects/recall?q=${encodeURIComponent(q)}`),
+  // Record one recall of a subject for the active pool — the belonging signal.
+  propose: (subjectId, opts = {}) => {
+    const p = new URLSearchParams(opts).toString()
+    return request(`/proposals${p ? `?${p}` : ''}`, { method: 'POST', body: { subjectId } })
+  },
 }

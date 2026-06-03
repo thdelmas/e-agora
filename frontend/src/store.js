@@ -246,6 +246,42 @@ export function poolQuery() {
   return q
 }
 
+// poolKeyOf mirrors the backend PoolKey (docs/11 §5): the geographic scope the
+// belonging signal is keyed on — country wins over continent, else the world.
+export function poolKeyOf() {
+  if (poolCountry.value) return `country:${poolCountry.value}`
+  if (poolRegion.value) return `continent:${poolRegion.value}`
+  return 'world'
+}
+
+// poolLabel is a human name for the current scope, for the recall prompt.
+export function poolLabel() {
+  return poolCountry.value || poolRegion.value || 'the world'
+}
+
+// Recall (docs/11 §2) is asked once per pool scope; we remember which scopes the
+// visitor has already answered, locally only (never sent — like the welcome flag).
+const RECALLED_KEY = 'eagora_recalled_pools'
+function readRecalled() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(RECALLED_KEY) || '[]'))
+  } catch {
+    return new Set()
+  }
+}
+const recalledPools = readRecalled()
+
+export function hasRecalled(key) {
+  return recalledPools.has(key)
+}
+
+export function markRecalled(key) {
+  recalledPools.add(key)
+  try {
+    localStorage.setItem(RECALLED_KEY, JSON.stringify([...recalledPools]))
+  } catch {}
+}
+
 export const me = reactive({
   loaded: false,
   contributions: 0,
