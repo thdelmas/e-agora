@@ -230,6 +230,38 @@ attention. Additive — no behavior change yet.
   *Code-complete: `npm run build` green (44 modules); the in-browser click-through wants
   a human at a browser (`make dev`).*
 
+### M14 — Proposal substrate (belonging signal)
+Pools shipped but membership is *inferred* from Wikidata geography — thin per
+country, and geopolitically surprising at the boundaries
+([11-belonging-and-proposals.md](11-belonging-and-proposals.md)). Start *measuring*
+membership via crowd recall, on a new axis distinct from the Glicko rating.
+- [ ] Migration: `proposals(session_id, pool_key, subject_id, created_at)` +
+      maintained `pool_belonging(pool_key, subject_id, proposals)` + per-pool
+      totals; canonical pool keys (`world` / `continent:Europe` / `country:France`).
+- [ ] `POST /api/proposals` (rate-limited + humanity-gated like votes); a recall
+      that matches no figure flows into the existing add path, scoped to the pool.
+- [ ] `belong(s,P)` smoothed score with a geography-bootstrapped prior.
+- **Done when**: entering a pool and naming a figure records a proposal; an
+  unregistered recall ingests the figure into that pool; the score is queryable.
+  Additive — no draw change yet.
+
+### M15 — Belonging-weighted membership
+- [ ] The per-pool draw and per-pool leaderboard read `belong(s,P)` as a weight
+      over the existing `R(s│v)`; below-floor geographic members (the
+      Türkiye-in-Europe case) are demoted, hard-hidden only under a strict floor.
+- **Done when**: a pool's matchups and ranking reflect crowd-corrected membership;
+  the single global rating stays valid and the comparison graph connected.
+
+### M16 — Recall flow UI
+- [ ] "Who comes to mind for _{pool}_?" on pool entry (type-ahead + free-text add),
+      seeding the first matchup from the pick; "I don't know anyone here" skip that
+      bumps the visitor up a level.
+- **Done when**: a visitor can recall a figure on entering a pool and vote from it
+  in the browser.
+
+*Later — hierarchical pool navigator (drill-down tree), once pools are an explicit
+parent/child model rather than predicates ([11 §5](11-belonging-and-proposals.md)).*
+
 ## Definition of done (v1)
 
 All requirements demonstrably met:
