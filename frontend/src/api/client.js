@@ -37,6 +37,13 @@ export const api = {
     const p = new URLSearchParams(opts).toString()
     return request(`/leaderboard${p ? `?${p}` : ''}`)
   },
+  // One figure's profile and pool-relative rank, for the dedicated subject view
+  // reached by clicking a leaderboard row. opts carries the same pool flags as
+  // the board so the rank lines up (docs/04-api.md §GET /subjects/{id}).
+  subject: (id, opts = {}) => {
+    const p = new URLSearchParams(opts).toString()
+    return request(`/subjects/${id}${p ? `?${p}` : ''}`)
+  },
   humanChallenge: () => request('/human/challenge'),
   humanVerify: (challengeId, answer, timing) =>
     request('/human/verify', {

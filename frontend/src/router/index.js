@@ -12,6 +12,13 @@ const routes = [
     name: 'leaderboard',
     component: () => import('../views/LeaderboardView.vue'),
   },
+  // A figure's dedicated profile + ranking, reached by clicking a leaderboard
+  // row. Gated like the leaderboard (it shows the rating).
+  {
+    path: '/subject/:id',
+    name: 'subject',
+    component: () => import('../views/SubjectView.vue'),
+  },
   // Public, ungated transparency dashboard — no access token required (the
   // route guard below only gates the leaderboard).
   {
@@ -29,7 +36,7 @@ const router = createRouter({
 // Client-side mirror of the access-token gate (R4/R10). UX only — the server
 // is authoritative and returns 403 if ungated (docs/01-functional-spec.md S2).
 router.beforeEach(async (to) => {
-  if (to.name !== 'leaderboard') return true
+  if (to.name !== 'leaderboard' && to.name !== 'subject') return true
   try {
     const me = await api.me()
     if (me.hasAccess) return true

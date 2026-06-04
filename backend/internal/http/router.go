@@ -69,6 +69,7 @@ func NewRouter(
 			r.Get("/leaderboard", h.leaderboard)
 			r.Post("/subjects", h.addSubject)
 			r.Get("/subjects/search", h.subjectsSearch)
+			r.Get("/subjects/{id}", h.subject)
 		})
 	})
 

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/thdelmas/e-agora/backend/internal/lang"
 	"github.com/thdelmas/e-agora/backend/internal/model"
 	"github.com/thdelmas/e-agora/backend/internal/store"
@@ -115,6 +117,69 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, leaderboardResponse{
 		TotalVotes: total, Limit: limit, Offset: offset,
 		Count: len(entries), Entries: entries,
+	})
+}
+
+// --- GET /api/subjects/{id} (gated, the dedicated subject view) --------------
+
+type subjectDetailResponse struct {
+	Rank    int                 `json:"rank"`
+	Subject model.SubjectPublic `json:"subject"`
+	Rating  float64             `json:"rating"`
+	// Glicko-2 RD; high = provisional
+	RatingDeviation float64 `json:"ratingDeviation"`
+	Wins            int     `json:"wins"`
+	Losses          int     `json:"losses"`
+	Comparisons     int     `json:"comparisons"`
+	Lang            string  `json:"lang"`
+}
+
+// subject returns one figure's profile and ranking, for the dedicated view a
+// visitor lands on by clicking a leaderboard row. Gated like the leaderboard
+// (the rating is shown), and pool-aware so the rank matches the board they came
+// from. The lead paragraph is backfilled like the matchup card so the page can
+// show a short bio inline.
+func (h *handlers) subject(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAccess(w, r); !ok {
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"That isn't a valid subject id.")
+		return
+	}
+
+	subj, rank, found, err := h.store.SubjectWithRank(
+		r.Context(), id, h.poolFrom(r))
+	if err != nil {
+		h.logger.Error("subject detail", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal",
+			"Could not load that figure.")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "not_found",
+			"We couldn't find that figure.")
+		return
+	}
+
+	display := lang.Pick(
+		r.URL.Query().Get("lang"),
+		r.Header.Get("Accept-Language"),
+		h.cfg.FallbackLang,
+	)
+	tr := h.localize(r.Context(), subj, display)
+	tr = h.ensureExtract(r.Context(), subj, tr)
+	writeJSON(w, http.StatusOK, subjectDetailResponse{
+		Rank:            rank,
+		Subject:         publicOf(subj, tr),
+		Rating:          math.Round(subj.Rating*10) / 10,
+		RatingDeviation: math.Round(subj.RD*10) / 10,
+		Wins:            subj.Wins,
+		Losses:          subj.Losses,
+		Comparisons:     subj.Comparisons,
+		Lang:            tr.Lang,
 	})
 }
 
