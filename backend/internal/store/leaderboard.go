@@ -2,7 +2,10 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/thdelmas/e-agora/backend/internal/model"
 )
@@ -55,6 +58,50 @@ func (s *Store) TopByRating(
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// SubjectWithRank returns one active subject's full row plus its rank within
+// the given pool, for the dedicated subject view reached by clicking a
+// leaderboard row. The rank mirrors TopByRating exactly — same conservative
+// ordering (rating − 2·RD) and the same pool filters
+// (deceased/continent/country/fame) — so the number on the detail page matches
+// the board the visitor came from. found is false when no active subject has
+// that id. The handler localizes the row, as it does for the leaderboard.
+func (s *Store) SubjectWithRank(
+	ctx context.Context, id int64, pool Pool,
+) (model.Subject, int, bool, error) {
+	var subj model.Subject
+	var rank int
+	err := s.pool.QueryRow(ctx, `
+		WITH cutoff AS (
+			SELECT CASE WHEN $4 THEN
+			            coalesce(percentile_cont($5) `+
+		`WITHIN GROUP (ORDER BY global_views), 0)
+			       ELSE 0 END AS fame_min
+			FROM subjects WHERE active AND ($2 OR died_at IS NULL)
+		)
+		SELECT s.id, s.wikidata_id, s.canonical_name, s.available_langs,
+		       s.rating, s.rd, s.wins, s.losses, s.comparisons, s.died_at,
+		       (SELECT count(*) FROM subjects o
+		        WHERE o.active AND ($2 OR o.died_at IS NULL)
+		          AND ($3 = '' OR o.continent @> ARRAY[$3])
+		          AND ($6 = '' OR o.country = $6)
+		          AND o.global_views >= (SELECT fame_min FROM cutoff)
+		          AND (o.rating - 2 * o.rd) > (s.rating - 2 * s.rd)) + 1
+		FROM subjects s
+		WHERE s.id = $1 AND s.active`,
+		id, pool.IncludeDeceased, pool.Continent, pool.FameTop,
+		pool.FamePct, pool.Country).
+		Scan(&subj.ID, &subj.WikidataID, &subj.CanonicalName,
+			&subj.AvailableLangs, &subj.Rating, &subj.RD, &subj.Wins,
+			&subj.Losses, &subj.Comparisons, &subj.DiedAt, &rank)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.Subject{}, 0, false, nil
+	}
+	if err != nil {
+		return model.Subject{}, 0, false, fmt.Errorf("subject with rank: %w", err)
+	}
+	return subj, rank, true, nil
 }
 
 // TotalVotes returns the all-visitor vote count (a leaderboard headline stat).

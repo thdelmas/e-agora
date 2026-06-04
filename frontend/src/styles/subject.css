@@ -1,0 +1,117 @@
+/* ============================================================================
+   Dedicated subject view — a figure's profile + ranking, reached by clicking
+   a leaderboard row. Reuses the matchup card's portrait/lead/wiki classes, with
+   few view-specific overrides (a wider header, a bigger name, a stats grid).
+   ========================================================================== */
+
+.subject-view {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+}
+
+.subject-view .back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+.subject-view .back:hover { color: var(--ink); text-decoration: underline; }
+
+.subject-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 1.4rem;
+}
+
+.subject-head {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+
+/* Override the matchup portrait's full-width sizing for the head row. */
+.subject-head .portrait { width: 140px; }
+
+.head-text { min-width: 0; }
+
+.rank-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.4rem;
+  color: var(--laurel);
+}
+.rank-badge .rank-word {
+  font-family: var(--font-body, inherit);
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.subject-view .name {
+  font-size: 1.8rem;
+  margin: 0.35rem 0 0.25rem;
+}
+
+/* Ranking numbers */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1.4rem 0 1rem;
+}
+.stats-grid .stat {
+  background: var(--bg, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+.stats-grid dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.stats-grid dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.stats-grid .stat.provisional dd { color: var(--muted); }
+.prov-tag {
+  display: inline-block;
+  font-family: var(--font-body, inherit);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--amber-deep);
+  vertical-align: middle;
+}
+.stat-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 560px) {
+  .subject-head {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+  .subject-head .portrait { width: 160px; }
+  .stats-grid { grid-template-columns: 1fr; }
+}

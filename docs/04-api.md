@@ -241,6 +241,23 @@ Ordering: `(rating - 2*rd) DESC, rd ASC, canonical_name ASC` (conservative Glick
 rating; deterministic tie-break — see [05](05-ranking.md) §Leaderboard ordering).
 Each entry localizes to the requested language, falling back to `en` per subject.
 
+### `GET /api/subjects/{id}`
+
+One figure's profile and ranking, for the dedicated view a visitor reaches by
+clicking a leaderboard row. **Gated by the access token (R4 + R10)**, like the
+leaderboard (the rating is shown). Pool-aware: the same pool query flags as the
+leaderboard (`includeDeceased`, `region`, `country`, `fameTier`) scope the
+`rank`, so it matches the board the visitor came from. `lang` localizes the
+projection, falling back to `en`.
+
+**200** — same fields as a `LeaderboardEntry`, for the one subject:
+```json
+{ "rank": 7, "subject": { }, "rating": 1588.2, "ratingDeviation": 71.0, "wins": 33, "losses": 21, "comparisons": 54, "lang": "en" }
+```
+
+**400** `invalid_request` (non-numeric id). **403** `access_required` /
+`access_expired`. **404** `not_found` (no active subject with that id).
+
 ### `POST /api/subjects`
 
 Add a new subject to the pool (R8). **Gated and rate-limited** (R8.1): requires a
@@ -366,6 +383,7 @@ No session side effects.
 | POST | `/api/human/verify` | none | yes (sets verified status) | pass humanity check (R12) |
 | POST | `/api/votes` | **human-verified** | yes | record preference; mint 24h token (if none valid) |
 | GET | `/api/leaderboard` | **valid access token** | no | ranked standings |
+| GET | `/api/subjects/{id}` | **valid access token** | no | one figure's profile + rank |
 | POST | `/api/subjects` | **valid token + unused add** | yes | add a human (R8), once per token |
 | GET | `/api/subjects/search` | none | no | autocomplete for adding |
 | GET | `/api/me` | none | no (mints session) | contribution + access state |

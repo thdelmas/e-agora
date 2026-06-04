@@ -37,6 +37,15 @@
   transition: transform 0.14s ease, box-shadow 0.2s ease;
 }
 .row:hover { transform: translateX(3px); box-shadow: var(--shadow-md); }
+/* The whole row is a link to the figure's dedicated view. display:contents lets
+   the link's children stay direct grid items of .row, so the layout is intact
+   while the entire row is clickable. */
+.row-link {
+  display: contents;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
 .rank {
   font-family: var(--font-display);
   font-weight: 900;

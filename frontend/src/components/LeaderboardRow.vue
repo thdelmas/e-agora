@@ -1,7 +1,16 @@
 <script setup>
 import { computed } from 'vue'
+import { poolQuery } from '../store'
 
 const props = defineProps({ entry: { type: Object, required: true } })
+
+// Clicking a row opens that figure's dedicated view. We carry the current pool
+// flags so its shown rank matches this board (docs/04-api.md §GET /subjects).
+const to = computed(() => ({
+  name: 'subject',
+  params: { id: props.entry.subject.id },
+  query: poolQuery(),
+}))
 
 // Percentage of a subject's votes that were wins/losses. comparisons == wins +
 // losses (every vote bumps one of them), so it doubles as the vote count.
@@ -35,6 +44,11 @@ const score = computed(() => rating.value - 2 * rd.value)
 
 <template>
   <li class="row" :class="entry.rank <= 3 ? ['top', `top-${entry.rank}`] : []">
+   <RouterLink
+     :to="to"
+     class="row-link"
+     :aria-label="`View ${entry.subject.name}`"
+   >
     <span class="rank">
       <span v-if="medal" class="medal" aria-hidden="true">{{ medal }}</span>
       <template v-else>{{ entry.rank }}</template>
@@ -83,5 +97,6 @@ const score = computed(() => rating.value - 2 * rd.value)
         rating {{ rating }} ±{{ rd }}{{ provisional ? ' ?' : '' }}
       </span>
     </span>
+   </RouterLink>
   </li>
 </template>
