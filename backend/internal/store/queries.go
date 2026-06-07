@@ -150,23 +150,35 @@ func (s *Store) RandomPair(
 		`/ greatest(s.global_views, 1)) * ln(1 + coalesce(pv.views, 0))
 			            + CASE WHEN $11 <> '' AND s.continent @> ARRAY[$11] `+
 		`THEN $12::float8 ELSE 0 END
-			            + CASE WHEN $14 <> '' AND s.country = $14 `+
+			            + CASE WHEN $14 <> '' AND s.country @> ARRAY[$14] `+
 		`THEN $15::float8 ELSE 0 END )
 			         -- belonging factor (docs/11): `+
 		`crowd recall reweights within the pool.
 			         -- (n+a)/(pi0*N+a): `+
 		`1 when no data, >1 recalled, <1 evidence-of-absence.
 			         * ((coalesce(pb.proposals, 0) + $17) `+
-		`/ ($18 * (SELECT pool_total FROM belong) + $17)),
+		`/ ($18 * (SELECT pool_total FROM belong) + $17))
+			         -- membership gate (docs/11 §7): confirm/infirm Beta `+
+		`confidence, least(1, conf/prior) — suppresses a figure the crowd
+			         -- argues out of the pool, never boosts (recall does that).
+			         * least(1.0, ((coalesce(pm.confirms, 0) + $19) `+
+		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) + $19 + $20)) / $21),
 			           1e-9) AS w,
 			       (($8 = '' OR s.continent @> ARRAY[$8])
-			         AND ($13 = '' OR s.country = $13)
-			         AND s.global_views >= (SELECT fame_min FROM cutoff)) AS in_pool
+			         AND ($13 = '' OR s.country @> ARRAY[$13])
+			         AND s.global_views >= (SELECT fame_min FROM cutoff)
+			         -- hard membership drop (docs/11 §7): strong infirm `+
+		`consensus removes the figure from the pool entirely.
+			         AND ((coalesce(pm.confirms, 0) + $19) `+
+		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) + $19 + $20)) `+
+		`>= $22) AS in_pool
 			FROM subjects s
 			LEFT JOIN subject_pageviews pv `+
 		`ON pv.subject_id = s.id AND pv.lang = $3
 			LEFT JOIN pool_belonging pb `+
 		`ON pb.pool_key = $16 AND pb.subject_id = s.id
+			LEFT JOIN pool_membership pm `+
+		`ON pm.pool_key = $16 AND pm.subject_id = s.id
 			WHERE s.active AND ($1 OR s.died_at IS NULL)
 		), anchor AS (
 			SELECT id, wikidata_id, canonical_name, available_langs, died_at
@@ -194,7 +206,8 @@ func (s *Store) RandomPair(
 		p.Beta, p.Gamma,
 		pool.Continent, pool.FameTop, pool.FamePct, homeRegion, p.Region,
 		pool.Country, homeCountry, p.Country,
-		poolKey, belongPriorStrength, belongPriorShare)
+		poolKey, belongPriorStrength, belongPriorShare,
+		memPriorAlpha, memPriorBeta, memPriorMean, memExcludeBelow)
 	if err != nil {
 		return nil, fmt.Errorf("random pair: %w", err)
 	}

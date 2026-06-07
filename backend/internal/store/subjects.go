@@ -35,26 +35,30 @@ func (s *Store) UpsertSubject(
 	return id, nil
 }
 
-// SetSubjectGeo records a subject's country and continents (the region pool
-// axis, docs/10 §4), resolved from Wikidata at sync. continents is the set of
-// continent buckets the subject's country belongs to — usually one, two for
-// the contiguous transcontinental states (so e.g. a Russian figure matches
-// both Europe and Asia). Keyed by Wikidata QID so the startup backfill can
-// write geo with only the QID in hand (no internal id lookup). An empty
-// country / continent set stores NULL (unknown → the subject matches no
-// region pool). Kept separate from UpsertSubject so the geo backfill doesn't
-// touch the rest of the upsert path.
+// SetSubjectGeo records a subject's countries and continents (the region pool
+// axis, docs/10 §4), resolved from Wikidata at sync. countries is the set of
+// citizenships the figure holds (usually one, several for a multi-citizen like
+// Musk → South Africa + Canada + USA); continents is the union of those
+// countries' continent buckets — two for the contiguous transcontinental states
+// too, so a Russian figure matches both Europe and Asia. Keyed by Wikidata QID
+// so the startup backfill can write geo with only the QID in hand (no internal
+// id lookup). An empty country / continent set stores NULL (unknown → the
+// subject matches no region pool). Kept separate from UpsertSubject so the geo
+// backfill doesn't touch the rest of the upsert path.
 func (s *Store) SetSubjectGeo(
-	ctx context.Context, qid, country string, continents []string,
+	ctx context.Context, qid string, countries, continents []string,
 ) error {
+	if len(countries) == 0 {
+		countries = nil // store NULL, not an empty array, for "no country"
+	}
 	if len(continents) == 0 {
 		continents = nil // store NULL, not an empty array, for "no region"
 	}
 	_, err := s.pool.Exec(ctx, `
 		UPDATE subjects `+
-		`SET country = NULLIF($2, ''), continent = $3, updated_at = now()
+		`SET country = $2, continent = $3, updated_at = now()
 		WHERE wikidata_id = $1`,
-		qid, country, continents,
+		qid, countries, continents,
 	)
 	if err != nil {
 		return fmt.Errorf("set subject geo %s: %w", qid, err)
@@ -105,18 +109,23 @@ type CountryStat struct {
 // hides countries too thin to draw a matchup from. Ordered by subject count
 // (the pools a visitor is likeliest to want) then name.
 func (s *Store) Countries(ctx context.Context) ([]CountryStat, error) {
+	// country is now a set (a figure can hold several citizenships), so unnest it
+	// — each subject counts once per country it belongs to. A country's display
+	// continent is taken as the mode() of its members' continent unions: most
+	// members are single-citizens whose union IS that country's continents, so a
+	// rare multi-citizen outlier (whose union spans extra continents) doesn't win.
 	rows, err := s.pool.Query(ctx, `
-		SELECT country, continents, cnt FROM (
-			SELECT DISTINCT ON (country)
-			       country,
-			       coalesce(continent, '{}') AS continents,
-			       count(*) OVER (PARTITION BY country)::int AS cnt
+		SELECT name,
+		       coalesce(mode() WITHIN GROUP (ORDER BY continent), '{}') AS continents,
+		       count(*)::int AS cnt
+		FROM (
+			SELECT unnest(country) AS name, coalesce(continent, '{}') AS continent
 			FROM subjects
 			WHERE active AND died_at IS NULL AND country IS NOT NULL
-			ORDER BY country
 		) q
-		WHERE cnt >= 2
-		ORDER BY cnt DESC, country ASC`)
+		GROUP BY name
+		HAVING count(*) >= 2
+		ORDER BY cnt DESC, name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("countries: %w", err)
 	}

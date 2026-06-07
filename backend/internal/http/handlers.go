@@ -76,9 +76,14 @@ func (h *handlers) matchup(w http.ResponseWriter, r *http.Request) {
 
 	ta := h.ensureExtract(r.Context(), a, h.localize(r.Context(), a, display))
 	tb := h.ensureExtract(r.Context(), b, h.localize(r.Context(), b, display))
+	pa, pb := publicOf(a, ta), publicOf(b, tb)
+	// Why each figure is in this pool + the crowd's confirm/infirm verdict
+	// (docs/11 §7); no-op for the world pool.
+	h.attachBelonging(r.Context(), h.poolFrom(r),
+		sessionFrom(r.Context()).ID, &pa, &pb)
 	writeJSON(w, http.StatusOK, matchupResponse{
-		A:               publicOf(a, ta),
-		B:               publicOf(b, tb),
+		A:               pa,
+		B:               pb,
 		DisplayLang:     display,
 		FallbackApplied: fellBack,
 	})

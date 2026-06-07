@@ -65,6 +65,8 @@ func NewRouter(
 			r.Post("/votes", h.vote)
 			r.Get("/subjects/recall", h.recall)
 			r.Post("/proposals", h.proposal)
+			r.Post("/membership", h.membership)
+			r.Get("/subjects/{id}/pools", h.subjectPools)
 			r.Get("/me", h.me)
 			r.Get("/leaderboard", h.leaderboard)
 			r.Post("/subjects", h.addSubject)

@@ -127,22 +127,58 @@ Append-only event log + maintained aggregate, mirroring votes/ratings:
 - **`pool_belonging`** — maintained counters `(pool_key, subject_id, proposals,
   updated_at)` plus per-pool totals `(pool_key, entries)` for the denominator.
   Derivable from `proposals`, materialized for the draw's sake.
+- **`membership_votes`** — `(session_id, pool_key, subject_id, verdict ±1)`, one
+  standing confirm/infirm verdict per session (changeable, retractable); the
+  source of truth for §7.
+- **`pool_membership`** — maintained `(pool_key, subject_id, confirms, infirms)`,
+  recomputed from `membership_votes`; the draw and leaderboard read it.
 - Subjects/sessions reused; new subjects from a recall use the existing add path.
 
 `belong(s,P)` and the threshold are computed from these; the matchup draw and the
 per-pool leaderboard read the score as a weight/filter.
 
-## 7. Open decisions
+## 7. Membership confidence — confirm / infirm
 
-- **Below-floor handling** — demote (downweight) vs hard-hide a low-belonging
-  geographic member. Lean: demote, hard-hide only under a strict floor.
+Recall (§2) is **positive-only**: it surfaces a *missing* member but can't argue a
+*wrong* one out. Geographic membership is seeded from Wikidata P27→P30 (trusted,
+imperfect — a stale colonial citizenship Wikidata never marked ended keeps Ismaïl
+Omar Guelleh in the France pool). So beside every shown membership we give the
+visitor a **signed verdict**: *confirm* ("belongs here") or *infirm* ("doesn't"),
+plus the **reason** the figure is here ("Citizen of France · Wikidata P27"). This
+is kept **separate** from the recall-share score — recall measures *who comes to
+mind*; this measures *whether a geographic match is real*.
+
+Verdicts feed a **Beta posterior mean** of "belongs", per `(pool, subject)`:
+
+```
+conf(s,P) = (confirms + α) / (confirms + infirms + α + β),   α=4, β=1
+```
+
+The prior is deliberately **trusting** — Wikidata placed them here, so with no
+votes `conf = α/(α+β) = 0.8`, not 0.5. Two effects, neither of which touches the
+global Glicko rating (belonging ≠ rating):
+
+- **Soft gate (draw):** the matchup weight is multiplied by `least(1, conf/0.8)` —
+  never a boost (recall does that), only a brake as the crowd argues a figure out.
+- **Hard drop (membership):** below `conf < 0.25` the figure leaves the pool
+  entirely (leaderboard + draw). Conservative on purpose: overriding Wikidata
+  takes sustained consensus, not one or two dissents. The `world` pool is never
+  voted on — everyone belongs to the world.
+
+Surfaced on both the matchup cards and the subject detail view (per-pool list).
+Rate-limited but not humanity-gated, like recall (§9).
+
+## 8. Open decisions
+
 - **Add gating for unregistered recalls** — spend the one-add allowance, or a
   lighter review queue? (Abuse vs growth trade-off.)
 - **Score denominator** — pool *entries* vs *proposals*; smoothing constants.
 - **Tree roll-up** — does belonging to `country:France` propagate to
   `continent:Europe`? Deferred with the hierarchy.
+- **Membership prior/threshold tuning** — α/β and the 0.25 hard-drop floor are
+  first-cut; revisit once real confirm/infirm volume arrives.
 
-## 8. Privacy & abuse
+## 9. Privacy & abuse
 
 Unchanged stance ([05](05-ranking.md), [09](09-identity-and-voting.md),
 [10 §6](10-recognition-and-pools.md)). A proposal is a fact aggregated per *pool*,

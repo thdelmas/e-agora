@@ -34,14 +34,23 @@ func (s *Store) TopByRating(
 		SELECT id, wikidata_id, canonical_name, available_langs,
 		       rating, rd, wins, losses, comparisons, died_at
 		FROM subjects
+		LEFT JOIN pool_membership pm
+		       ON pm.pool_key = $8 AND pm.subject_id = subjects.id
 		WHERE active AND ($3 OR died_at IS NULL)
 		  AND ($4 = '' OR continent @> ARRAY[$4])
-		  AND ($7 = '' OR country = $7)
+		  AND ($7 = '' OR country @> ARRAY[$7])
 		  AND global_views >= (SELECT fame_min FROM cutoff)
+		  -- membership drop (docs/11 §7): a figure the crowd has argued out of
+		  -- this pool (strong infirm consensus) leaves the board; the 'world'
+		  -- pool is never voted on, so its members always pass.
+		  AND ((coalesce(pm.confirms, 0) + $9)
+		       / (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) + $9 + $10))
+		      >= $11
 		ORDER BY (rating - 2 * rd) DESC, rd ASC, canonical_name ASC
 		LIMIT $1 OFFSET $2`,
 		limit, offset, pool.IncludeDeceased, pool.Continent, pool.FameTop,
-		pool.FamePct, pool.Country)
+		pool.FamePct, pool.Country,
+		PoolKey(pool), memPriorAlpha, memPriorBeta, memExcludeBelow)
 	if err != nil {
 		return nil, fmt.Errorf("leaderboard: %w", err)
 	}

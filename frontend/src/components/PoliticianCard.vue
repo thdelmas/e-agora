@@ -1,11 +1,13 @@
 <script setup>
 import { ref } from 'vue'
+import MembershipControl from './MembershipControl.vue'
 // One subject in a matchup. Rating is intentionally absent so the visitor
 // isn't biased before choosing (docs/04-api.md §Resource shapes). `side`
 // ('a' | 'b') tints the card for the head-to-head vote — teal vs amber.
 // The Wikipedia lead paragraph (`extract`) is shown inline, clamped, so a
 // visitor can form an opinion on someone they don't know without leaving to
-// read the page.
+// read the page. `subject.belonging` (when the pool is geographic) drives the
+// "why is this person here?" + confirm/infirm control (docs/11 §7).
 defineProps({
   subject: { type: Object, required: true },
   side: { type: String, default: 'a' },
@@ -65,5 +67,11 @@ const expanded = ref(false)
       class="prefer"
       @click="$emit('prefer', subject.id)"
     >Prefer {{ subject.name.split(' ')[0] }}</button>
+
+    <MembershipControl
+      v-if="subject.belonging"
+      :subject-id="subject.id"
+      :belonging="subject.belonging"
+    />
   </article>
 </template>
