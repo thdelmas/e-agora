@@ -28,7 +28,7 @@ type pageview struct {
 }
 type geo struct {
 	qid        string
-	country    string
+	countries  []string
 	continents []string
 }
 
@@ -63,9 +63,9 @@ func (f *fakeWriter) RefreshGlobalViews(context.Context) error {
 	return nil
 }
 func (f *fakeWriter) SetSubjectGeo(
-	_ context.Context, qid, country string, continents []string,
+	_ context.Context, qid string, countries, continents []string,
 ) error {
-	f.geos = append(f.geos, geo{qid, country, continents})
+	f.geos = append(f.geos, geo{qid, countries, continents})
 	return nil
 }
 func (f *fakeWriter) SubjectQIDsMissingGeo(context.Context) ([]string, error) {

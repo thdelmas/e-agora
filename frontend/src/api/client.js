@@ -64,4 +64,18 @@ export const api = {
     const p = new URLSearchParams(opts).toString()
     return request(`/proposals${p ? `?${p}` : ''}`, { method: 'POST', body })
   },
+  // Confirm/infirm a subject's membership in the active pool (docs/11 §7).
+  // verdict is 'confirm' | 'infirm' | 'none' (retract); opts carries the pool
+  // scope, same as propose(). Returns the refreshed { confirms, infirms,
+  // score, viewerVerdict, excluded }.
+  membership: (subjectId, verdict, opts = {}) => {
+    const p = new URLSearchParams(opts).toString()
+    return request(`/membership${p ? `?${p}` : ''}`, {
+      method: 'POST',
+      body: { subjectId, verdict },
+    })
+  },
+  // Every geographic pool a subject is in, each with its why-reason and the
+  // crowd's membership verdict — for the subject detail view (docs/11 §7).
+  subjectPools: (id) => request(`/subjects/${id}/pools`),
 }

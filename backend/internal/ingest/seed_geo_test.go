@@ -17,8 +17,8 @@ func TestParseEntity_CountryAndContinent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseEntity: %v", err)
 	}
-	if got.CountryQID != "Q142" {
-		t.Errorf("CountryQID = %q, want Q142", got.CountryQID)
+	if !slices.Equal(got.CountryQIDs, []string{"Q142"}) {
+		t.Errorf("CountryQIDs = %v, want [Q142]", got.CountryQIDs)
 	}
 	country := []byte(`{"entities":{"Q142":{` +
 		`"labels":{"en":{"value":"France"}},
@@ -34,10 +34,10 @@ func TestParseEntity_CountryAndContinent(t *testing.T) {
 	}
 }
 
-// P27 selection picks the current citizenship: a deprecated claim or one with a
+// P27 keeps the current citizenships only: a deprecated claim or one with a
 // P582 end-time qualifier (a former country) is skipped, and a preferred-rank
-// claim wins over document order — so a post-1991 Russian leader resolves to
-// Russia, not the Soviet Union it also lists.
+// claim leads the slice — so a post-1991 Russian leader resolves to Russia
+// (preferred), with the ended Soviet Union dropped entirely.
 func TestParseEntity_CurrentCitizenship(t *testing.T) {
 	person := []byte(`{"entities":{"Q1":{
 		"claims":{"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}],
@@ -52,10 +52,62 @@ func TestParseEntity_CurrentCitizenship(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseEntity: %v", err)
 	}
-	if got.CountryQID != "Q159" {
+	if !slices.Equal(got.CountryQIDs, []string{"Q159"}) {
 		t.Errorf(
-			"CountryQID = %q, want Q159 (Russia, not the ended Soviet Union)",
-			got.CountryQID)
+			"CountryQIDs = %v, want [Q159] (Russia, ended Soviet Union dropped)",
+			got.CountryQIDs)
+	}
+}
+
+// A multi-citizen keeps EVERY current citizenship (Musk: South Africa Q258,
+// Canada Q16, USA Q30 — all rank-normal, no end-time), so the region pool can
+// place them in each country. Document order is preserved; with no preferred
+// rank, the first-listed citizenship no longer wins alone.
+func TestParseEntity_MultipleCitizenships(t *testing.T) {
+	person := []byte(`{"entities":{"Q317521":{
+		"claims":{"P31":[{"mainsnak":{"datavalue":{"value":{"id":"Q5"}}}}],
+		          "P27":[
+		            {"rank":"normal","mainsnak":` +
+		`{"datavalue":{"value":{"id":"Q258"}}}},
+		            {"rank":"normal","mainsnak":` +
+		`{"datavalue":{"value":{"id":"Q16"}}}},
+		            {"rank":"normal","mainsnak":` +
+		`{"datavalue":{"value":{"id":"Q30"}}}}]}}}}`)
+	got, err := parseEntity(person, "Q317521")
+	if err != nil {
+		t.Fatalf("parseEntity: %v", err)
+	}
+	if !slices.Equal(got.CountryQIDs, []string{"Q258", "Q16", "Q30"}) {
+		t.Errorf("CountryQIDs = %v, want [Q258 Q16 Q30]", got.CountryQIDs)
+	}
+}
+
+// resolveCountries unions a multi-citizen's country labels and continents,
+// de-duplicated and in input order — so Musk (South Africa + Canada + USA)
+// lands in three country pools spanning Africa and North America.
+func TestResolveCountries_UnionsLabelsAndContinents(t *testing.T) {
+	conts := map[string][]string{
+		"Q258": {"Q15"}, // South Africa → Africa
+		"Q16":  {"Q49"}, // Canada → North America
+		"Q30":  {"Q49"}, // USA → North America (dup continent)
+	}
+	labels := map[string]string{
+		"Q258": "South Africa", "Q16": "Canada", "Q30": "USA",
+	}
+	s := &Seeder{Logger: discardLogger(), Fetcher: fakeFetcher{
+		entity: func(qid string) (EntityFacts, error) {
+			return EntityFacts{
+				QID: qid, LabelEn: labels[qid], ContinentQIDs: conts[qid],
+			}, nil
+		},
+	}}
+	gotC, gotCont := s.resolveCountries(
+		context.Background(), []string{"Q258", "Q16", "Q30"})
+	wantC := []string{"South Africa", "Canada", "USA"}
+	wantCont := []string{"Africa", "North America"}
+	if !slices.Equal(gotC, wantC) || !slices.Equal(gotCont, wantCont) {
+		t.Errorf("resolveCountries = %v/%v, want %v/%v",
+			gotC, gotCont, wantC, wantCont)
 	}
 }
 
@@ -134,7 +186,7 @@ func TestSeedOne_ResolvesGeo(t *testing.T) {
 			default:
 				return EntityFacts{
 					QID: qid, IsHuman: true, EnwikiTitle: "X",
-					Langs: []string{"en"}, CountryQID: "Q142",
+					Langs: []string{"en"}, CountryQIDs: []string{"Q142"},
 				}, nil
 			}
 		},
@@ -146,9 +198,9 @@ func TestSeedOne_ResolvesGeo(t *testing.T) {
 		t.Fatalf("seedOne: %v", err)
 	}
 	if len(w.geos) != 1 || w.geos[0].qid != "Q1" ||
-		w.geos[0].country != "France" ||
+		!slices.Equal(w.geos[0].countries, []string{"France"}) ||
 		!slices.Equal(w.geos[0].continents, []string{"Europe"}) {
-		t.Errorf("geos = %+v, want one Q1/France/[Europe]", w.geos)
+		t.Errorf("geos = %+v, want one Q1/[France]/[Europe]", w.geos)
 	}
 }
 
@@ -161,7 +213,9 @@ func TestBackfillGeo_ResolvesMissingOnly(t *testing.T) {
 		entity: func(qid string) (EntityFacts, error) {
 			switch qid {
 			case "Q1": // a leader → country Q142
-				return EntityFacts{QID: "Q1", IsHuman: true, CountryQID: "Q142"}, nil
+				return EntityFacts{
+					QID: "Q1", IsHuman: true, CountryQIDs: []string{"Q142"},
+				}, nil
 			case "Q2": // a stateless figure → no country, stays unscoped
 				return EntityFacts{QID: "Q2", IsHuman: true}, nil
 			case "Q142": // France → Europe

@@ -112,4 +112,22 @@ type SubjectPublic struct {
 	Deceased bool `json:"deceased,omitempty"`
 	// year of death, for display next to the name
 	DiedYear int `json:"diedYear,omitempty"`
+	// why this subject is in the current geographic pool, and the crowd's
+	// confirm/infirm verdict on that membership (docs/11 §7). nil for the world
+	// pool (no membership question) and wherever the response isn't pool-scoped.
+	Belonging *Belonging `json:"belonging,omitempty"`
+}
+
+// Belonging explains and scores a subject's membership in a geographic pool:
+// the human-readable reason it was placed there (Wikidata P27), the crowd's
+// confirm/infirm tally and Beta confidence, and the viewer's own standing
+// verdict so the UI can show which button is active (docs/11 §7).
+type Belonging struct {
+	PoolKey  string  `json:"poolKey"`
+	Reason   string  `json:"reason"`
+	Confirms int     `json:"confirms"`
+	Infirms  int     `json:"infirms"`
+	Score    float64 `json:"score"`
+	// the requesting session's vote: "confirm" | "infirm" | "" (none)
+	ViewerVerdict string `json:"viewerVerdict,omitempty"`
 }

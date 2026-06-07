@@ -27,9 +27,12 @@ type EntityFacts struct {
 	// DiedAt is the P570 date of death, normalized YYYY-MM-DD; "" if
 	// living/unknown.
 	DiedAt string
-	// CountryQID is the P27 country of citizenship (first claim) — the region
-	// pool axis (docs/10 §4).
-	CountryQID string
+	// CountryQIDs are the P27 countries of citizenship — every current one (a
+	// figure can hold several, e.g. Musk: South Africa + Canada + USA), so the
+	// region pool (docs/10 §4) places them in each. Preferred-rank claims come
+	// first, then the rest in document order; deprecated and ended (P582)
+	// citizenships are dropped.
+	CountryQIDs []string
 	// ContinentQIDs are the P30 continents (every item claim, in document
 	// order) — set when the entity is a country; the caller picks the first
 	// that maps to a known bucket.
@@ -154,14 +157,15 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 	// read when this entity *is* a country, so resolving a person's country
 	// yields its continent in the same fetch.
 	//
-	// P27 picks the *current* citizenship: a leader can carry a former one
-	// too — a post-1991 Russian's P27 lists the Soviet Union (rank normal,
-	// P582 end-time) alongside Russia (rank preferred, no end). We skip
-	// deprecated claims and any with a P582 end-time qualifier, then prefer
-	// the "preferred"-rank claim, falling back to the first normal one —
-	// otherwise document order alone would resolve such figures to the defunct
-	// predecessor state.
-	var firstNormalP27 string
+	// P27 keeps every *current* citizenship: a figure can hold several at once
+	// (Musk: South Africa + Canada + USA, all rank-normal, no end-time) and the
+	// region pool should place them in each. We skip deprecated claims and any
+	// with a P582 end-time qualifier (a former country — e.g. a post-1991
+	// Russian's Soviet-Union claim), so the set is the live citizenships only.
+	// Preferred-rank claims lead the slice (document order within each rank,
+	// de-duplicated); resolveCountries unions their labels and continents.
+	var preferred, normal []string
+	seenP27 := map[string]bool{}
 	for _, claim := range ent.Claims["P27"] {
 		if claim.Rank == "deprecated" || len(claim.Qualifiers["P582"]) > 0 {
 			continue // deprecated or a former (ended) citizenship
@@ -170,20 +174,17 @@ func parseEntity(raw []byte, qid string) (EntityFacts, error) {
 			ID string `json:"id"`
 		}
 		err := json.Unmarshal(claim.Mainsnak.DataValue.Value, &v)
-		if err != nil || v.ID == "" {
+		if err != nil || v.ID == "" || seenP27[v.ID] {
 			continue
 		}
+		seenP27[v.ID] = true
 		if claim.Rank == "preferred" {
-			facts.CountryQID = v.ID
-			break
-		}
-		if firstNormalP27 == "" {
-			firstNormalP27 = v.ID
+			preferred = append(preferred, v.ID)
+		} else {
+			normal = append(normal, v.ID)
 		}
 	}
-	if facts.CountryQID == "" {
-		facts.CountryQID = firstNormalP27
-	}
+	facts.CountryQIDs = append(preferred, normal...)
 	// continent keeps *all* non-deprecated claims (in document order) because a
 	// country can list several — overseas-territory continents, or distinct
 	// Wikidata QIDs for the same continent (e.g. Australia's P30 is Oceania +

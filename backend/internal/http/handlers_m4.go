@@ -112,6 +112,15 @@ func (h *handlers) leaderboard(w http.ResponseWriter, r *http.Request) {
 			Lang:            tr.Lang,
 		})
 	}
+	// Why each figure is in this pool + the crowd's verdict (docs/11 §7), so the
+	// board can show and collect membership feedback. One batched lookup for the
+	// whole page; no-op for the world board.
+	subjPtrs := make([]*model.SubjectPublic, len(entries))
+	for i := range entries {
+		subjPtrs[i] = &entries[i].Subject
+	}
+	h.attachBelonging(r.Context(), h.poolFrom(r),
+		sessionFrom(r.Context()).ID, subjPtrs...)
 	writeJSON(w, http.StatusOK, leaderboardResponse{
 		TotalVotes: total, Limit: limit, Offset: offset,
 		Count: len(entries), Entries: entries,

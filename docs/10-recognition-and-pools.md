@@ -98,9 +98,13 @@ transcontinental states get multiple continents — a country's Wikidata P30 als
 names its *overseas territories'* continents (France spans Europe + Africa +
 Oceania + Antarctica), so for everyone else we keep just the primary continent.
 The region filter is therefore a containment test (`continent @> ARRAY[region]`).
-Country of citizenship (P27) resolves to the *current* one — a former, ended
-citizenship (e.g. the Soviet Union for a post-1991 Russian leader, marked by a
-P582 end-time qualifier and outranked by the preferred claim) is skipped.
+A figure's `country` is likewise a **set**: P27 can list several *current*
+citizenships at once (Elon Musk → South Africa + Canada + United States), and
+such a figure belongs in *every* one of those country pools — `continent` is the
+union of all of them. The country filter is the same containment test
+(`country @> ARRAY[label]`). Former, ended citizenships are dropped (e.g. the
+Soviet Union for a post-1991 Russian, marked by a P582 end-time qualifier), as
+are deprecated claims, so only the live citizenships count.
 
 **Ranking stays one global Glicko rating.** Per-pool leaderboards are *filtered views*
 over that one rating column (`WHERE continent @> ARRAY[region] AND global_views≥…`) — ranking *within* a

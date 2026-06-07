@@ -30,7 +30,7 @@ type SubjectWriter interface {
 	) error
 	RefreshGlobalViews(ctx context.Context) error
 	SetSubjectGeo(
-		ctx context.Context, qid, country string, continents []string,
+		ctx context.Context, qid string, countries, continents []string,
 	) error
 	SubjectQIDsMissingGeo(ctx context.Context) ([]string, error)
 }
@@ -252,13 +252,13 @@ func (s *Seeder) seedOne(ctx context.Context, it seedItem) error {
 		return fmt.Errorf("upsert subject: %w", err)
 	}
 
-	// Region pool axis (docs/10 §4): resolve the subject's country (P27) to a
-	// country label + continent, best-effort (a failure leaves geo NULL).
-	if facts.CountryQID != "" {
-		info := s.resolveCountry(ctx, facts.CountryQID)
-		if info.label != "" || len(info.continents) > 0 {
+	// Region pool axis (docs/10 §4): resolve the subject's citizenships (P27) to
+	// country labels + continents, best-effort (a failure leaves geo NULL).
+	if len(facts.CountryQIDs) > 0 {
+		countries, continents := s.resolveCountries(ctx, facts.CountryQIDs)
+		if len(countries) > 0 || len(continents) > 0 {
 			if err := s.Store.SetSubjectGeo(
-				ctx, it.QID, info.label, info.continents,
+				ctx, it.QID, countries, continents,
 			); err != nil {
 				s.Logger.Warn("seed: set geo failed", "qid", it.QID,
 					"err", err)

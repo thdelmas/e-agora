@@ -50,6 +50,34 @@ type countryInfo struct {
 	continents []string
 }
 
+// resolveCountries resolves all of a figure's P27 country QIDs (a person can
+// hold several citizenships) into the geo to store: the set of country labels
+// they're a citizen of and the UNION of those countries' region-pool continents
+// — so a multi-citizen lands in every one of their country pools and every
+// continent those span (docs/10 §4). Order follows the input (preferred
+// citizenships first); both sets are de-duplicated. Reuses the per-QID cache
+// via resolveCountry, so a country shared across figures costs one fetch.
+func (s *Seeder) resolveCountries(
+	ctx context.Context, qids []string,
+) (labels []string, continents []string) {
+	seenLabel := map[string]bool{}
+	seenCont := map[string]bool{}
+	for _, qid := range qids {
+		info := s.resolveCountry(ctx, qid)
+		if info.label != "" && !seenLabel[info.label] {
+			seenLabel[info.label] = true
+			labels = append(labels, info.label)
+		}
+		for _, c := range info.continents {
+			if !seenCont[c] {
+				seenCont[c] = true
+				continents = append(continents, c)
+			}
+		}
+	}
+	return labels, continents
+}
+
 // resolveCountry turns a person's P27 country QID into a display label and the
 // region-pool continents it maps to, fetching the country entity once per
 // distinct QID and caching the result on the Seeder for the pass — a pool of

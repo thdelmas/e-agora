@@ -57,16 +57,16 @@ func (s *Seeder) BackfillGeo(ctx context.Context) error {
 			s.Logger.Warn("backfill geo: entity failed", "qid", qid, "err", err)
 			continue
 		}
-		var info countryInfo
-		if facts.CountryQID != "" {
-			info = s.resolveCountry(ctx, facts.CountryQID)
+		var countries, continents []string
+		if len(facts.CountryQIDs) > 0 {
+			countries, continents = s.resolveCountries(ctx, facts.CountryQIDs)
 		}
-		if info.label == "" && len(info.continents) == 0 {
+		if len(countries) == 0 && len(continents) == 0 {
 			unscoped++ // no resolvable country/continent — leave NULL
 			continue
 		}
 		if err := s.Store.SetSubjectGeo(
-			ctx, qid, info.label, info.continents,
+			ctx, qid, countries, continents,
 		); err != nil {
 			failed++
 			s.Logger.Warn("backfill geo: set geo failed", "qid", qid,
