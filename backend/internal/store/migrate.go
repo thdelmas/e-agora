@@ -37,6 +37,15 @@ func (s *Store) Migrate(ctx context.Context, fsys fs.FS) (int, error) {
 	}
 	sort.Strings(names)
 
+	// Fail loudly on two files sharing a version. The runner keys on the
+	// integer version, so a collision means the second file is silently
+	// skipped (the 0009 country_array vs 0009_proposals incident that left
+	// production's country column un-widened — see 0012). Catch it at boot,
+	// before any migration runs, rather than shipping a half-applied schema.
+	if err := checkDuplicateVersions(names); err != nil {
+		return 0, err
+	}
+
 	count := 0
 	for _, name := range names {
 		version, err := versionOf(name)
@@ -98,6 +107,27 @@ func (s *Store) applyOne(
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit %s: %w", name, err)
+	}
+	return nil
+}
+
+// checkDuplicateVersions reports the first version number claimed by more than
+// one migration file. names must be sorted, so the two colliding files are
+// named deterministically in the error.
+func checkDuplicateVersions(names []string) error {
+	seen := make(map[int]string, len(names))
+	for _, name := range names {
+		version, err := versionOf(name)
+		if err != nil {
+			return err
+		}
+		if prev, dup := seen[version]; dup {
+			return fmt.Errorf(
+				"migration version %d claimed by both %q and %q: "+
+					"renumber one (a duplicate version is silently skipped)",
+				version, prev, path.Base(name))
+		}
+		seen[version] = path.Base(name)
 	}
 	return nil
 }
