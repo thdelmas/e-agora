@@ -30,6 +30,24 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # A throwaway PostgreSQL so DB-backed tests (e.g. the RandomPair draw, whose
+    # SQL only fails against a real engine) actually run instead of skipping.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eagora
+          POSTGRES_PASSWORD: eagora
+          POSTGRES_DB: eagora_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eagora"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      EAGORA_TEST_DSN: postgres://eagora:eagora@localhost:5432/eagora_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
 
