@@ -127,10 +127,16 @@ func (s *Store) RandomPair(
 	// per-(pool,subject) recall factor multiplies the recognition weight,
 	// keyed by the pool's scope.
 	poolKey := PoolKey(pool)
+	// The fame/belonging/membership prior parameters ($10, $17–$22) are CAST
+	// ::float8 at every use. They carry fractional values (e.g. memPriorMean
+	// 0.8, FamePct 0.7), but a bound parameter with no cast is inferred as
+	// integer from the surrounding integer arithmetic — which makes the Beta
+	// confidence an integer division and rounds memPriorMean to 0, so the
+	// membership gate divides by zero on every draw. Keep the casts.
 	rows, err := s.pool.Query(ctx, `
 		WITH cutoff AS (
 			SELECT CASE WHEN $9 THEN
-			            coalesce(percentile_cont($10) `+
+			            coalesce(percentile_cont($10::float8) `+
 		`WITHIN GROUP (ORDER BY global_views), 0)
 			       ELSE 0 END AS fame_min
 			FROM subjects WHERE active AND ($1 OR died_at IS NULL)
@@ -156,22 +162,23 @@ func (s *Store) RandomPair(
 		`crowd recall reweights within the pool.
 			         -- (n+a)/(pi0*N+a): `+
 		`1 when no data, >1 recalled, <1 evidence-of-absence.
-			         * ((coalesce(pb.proposals, 0) + $17) `+
-		`/ ($18 * (SELECT pool_total FROM belong) + $17))
+			         * ((coalesce(pb.proposals, 0) + $17::float8) `+
+		`/ ($18::float8 * (SELECT pool_total FROM belong) + $17::float8))
 			         -- membership gate (docs/11 §7): confirm/infirm Beta `+
 		`confidence, least(1, conf/prior) — suppresses a figure the crowd
 			         -- argues out of the pool, never boosts (recall does that).
-			         * least(1.0, ((coalesce(pm.confirms, 0) + $19) `+
-		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) + $19 + $20)) / $21),
+			         * least(1.0, ((coalesce(pm.confirms, 0) + $19::float8) `+
+		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) `+
+		`+ $19::float8 + $20::float8)) / $21::float8),
 			           1e-9) AS w,
 			       (($8 = '' OR s.continent @> ARRAY[$8])
 			         AND ($13 = '' OR s.country @> ARRAY[$13])
 			         AND s.global_views >= (SELECT fame_min FROM cutoff)
 			         -- hard membership drop (docs/11 §7): strong infirm `+
 		`consensus removes the figure from the pool entirely.
-			         AND ((coalesce(pm.confirms, 0) + $19) `+
-		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) + $19 + $20)) `+
-		`>= $22) AS in_pool
+			         AND ((coalesce(pm.confirms, 0) + $19::float8) `+
+		`/ (coalesce(pm.confirms, 0) + coalesce(pm.infirms, 0) `+
+		`+ $19::float8 + $20::float8)) >= $22::float8) AS in_pool
 			FROM subjects s
 			LEFT JOIN subject_pageviews pv `+
 		`ON pv.subject_id = s.id AND pv.lang = $3
