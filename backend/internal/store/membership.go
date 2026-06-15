@@ -15,10 +15,14 @@ import (
 // votes confidence sits at the prior mean α/(α+β) = 0.8, not 0.5. It takes a
 // sustained run of infirms to argue a figure out; a few confirms defend one.
 const (
-	memPriorAlpha   = 4.0  // α — prior "belongs" weight (trust the P27 seed)
-	memPriorBeta    = 1.0  // β — prior "doesn't belong" weight
-	memPriorMean    = memPriorAlpha / (memPriorAlpha + memPriorBeta) // 0.8
-	memExcludeBelow = 0.25 // hard-drop from the pool below this confidence
+	// α — prior "belongs" weight (trust the P27 seed)
+	memPriorAlpha = 4.0
+	// β — prior "doesn't belong" weight
+	memPriorBeta = 1.0
+	// prior mean α/(α+β) = 0.8
+	memPriorMean = memPriorAlpha / (memPriorAlpha + memPriorBeta)
+	// hard-drop from the pool below this confidence
+	memExcludeBelow = 0.25
 )
 
 // MembershipConfidence is the Beta posterior mean that a subject belongs in a
