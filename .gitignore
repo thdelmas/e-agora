@@ -29,3 +29,6 @@ yarn-error.log*
 
 # --- Postgres data volume (if mapped locally) ---
 .pgdata/
+
+# Claude Code local config — never ship to auditors
+.claude/
